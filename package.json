@@ -1,0 +1,17 @@
+{
+  "name": "openpatatoes",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "db:generate": "pnpm --filter @openpatatoes/server run db:generate",
+    "db:migrate": "pnpm --filter @openpatatoes/server run db:migrate"
+  }
+}
