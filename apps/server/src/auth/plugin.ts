@@ -48,3 +48,9 @@ export function requireSession(db: Database, cookie: SessionCookieOptions): onRe
     setSessionCookie(reply, token, session.expiresAt, cookie);
   };
 }
+
+/** Utilisateur de la session, sur une route protégée par `requireSession`. */
+export function currentUserId(request: FastifyRequest): string {
+  if (!request.user) throw new Error("Route privée appelée sans utilisateur");
+  return request.user.id;
+}

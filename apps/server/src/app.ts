@@ -7,6 +7,7 @@ import type { TokenCipher } from "./op/token-cipher.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
 import { opConnectionRoutes } from "./routes/op-connection.js";
+import { projectRoutes } from "./routes/projects.js";
 
 export interface AppDependencies {
   db: Database;
@@ -27,6 +28,7 @@ export function buildApp(deps: AppDependencies, options: AppOptions = {}): Fasti
   app.register(healthRoutes(deps), { prefix: "/api" });
   app.register(authRoutes(deps), { prefix: "/api" });
   app.register(opConnectionRoutes(deps), { prefix: "/api" });
+  app.register(projectRoutes(deps), { prefix: "/api" });
 
   return app;
 }
