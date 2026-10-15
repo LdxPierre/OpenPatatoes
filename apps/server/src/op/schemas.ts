@@ -16,6 +16,18 @@ export const opUserSchema = z
 
 export type OpUser = z.output<typeof opUserSchema>;
 
+/**
+ * Assignable d'une tâche. OP propose aussi des groupes et des utilisateurs fictifs ;
+ * l'application n'assigne qu'à des utilisateurs, les autres donnent `null`.
+ */
+export const opAvailableAssigneeSchema = z
+  .object({
+    _type: z.string(),
+    id: z.number().int(),
+    name: z.string(),
+  })
+  .transform(({ _type, id, name }) => (_type === "User" ? { id, name } : null));
+
 export const opProjectSchema = z
   .object({
     _type: z.literal("Project"),
@@ -85,15 +97,19 @@ export const opWorkPackageDetailSchema = z
     _type: z.literal("WorkPackage"),
     id: z.number().int(),
     subject: z.string(),
+    /** Version de la tâche dans OP, à renvoyer avec chaque écriture. */
+    lockVersion: z.number().int(),
     estimatedTime: opDurationAsHoursSchema,
     remainingTime: opDurationAsHoursSchema,
-    _links: z.object({ parent: opOptionalLinkSchema }),
+    _links: z.object({ assignee: opOptionalLinkSchema, parent: opOptionalLinkSchema }),
   })
-  .transform(({ id, subject, estimatedTime, remainingTime, _links }) => ({
+  .transform(({ id, subject, lockVersion, estimatedTime, remainingTime, _links }) => ({
     id,
     subject,
+    lockVersion,
     estimatedHours: estimatedTime,
     remainingHours: remainingTime,
+    assignee: _links.assignee,
     parent: _links.parent && { id: _links.parent.id, subject: _links.parent.name },
   }));
 
@@ -107,3 +123,17 @@ export function opCollectionPageSchema<T extends z.ZodType>(element: T) {
     _links: z.object({ nextByOffset: z.object({ href: z.string() }).optional() }),
   });
 }
+
+/**
+ * Erreur 422 d'OP. Une seule contrainte violée donne son message ; plusieurs donnent
+ * `MultipleErrors`, dont le message générique cède la place à ceux de `_embedded.errors`.
+ */
+export const opRejectionSchema = z
+  .object({
+    _type: z.literal("Error"),
+    message: z.string(),
+    _embedded: z.object({ errors: z.array(z.object({ message: z.string() })).optional() }).optional(),
+  })
+  .transform(({ message, _embedded }) =>
+    _embedded?.errors?.length ? _embedded.errors.map((error) => error.message) : [message],
+  );

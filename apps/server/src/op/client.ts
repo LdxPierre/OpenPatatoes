@@ -4,13 +4,17 @@ import {
   OpForbiddenError,
   OpInvalidResponseError,
   OpNotFoundError,
+  OpRejectedError,
   OpUnauthenticatedError,
   OpUnavailableError,
   type OpError,
 } from "./errors.js";
+import { hoursToIsoDuration } from "./duration.js";
 import {
+  opAvailableAssigneeSchema,
   opCollectionPageSchema,
   opProjectSchema,
+  opRejectionSchema,
   opUserSchema,
   opWorkPackageDetailSchema,
   opWorkPackageSchema,
@@ -36,6 +40,19 @@ export interface OpApi {
   listProjectWorkPackages(projectId: number): ResultAsync<OpWorkPackage[], OpError>;
   /** Une tâche, durées converties en heures décimales. */
   getWorkPackage(id: number): ResultAsync<OpWorkPackageDetail, OpError>;
+  /** Modifie les seuls champs présents et renvoie la tâche telle qu'OP l'a enregistrée. */
+  updateWorkPackage(id: number, changes: WorkPackageChanges): ResultAsync<OpWorkPackageDetail, OpError>;
+  /** Utilisateurs qu'OP accepte comme assignés de la tâche. */
+  listAvailableAssignees(workPackageId: number): ResultAsync<OpUser[], OpError>;
+}
+
+/** Modification d'une tâche ; `null` vide le champ, un champ absent reste inchangé. */
+export interface WorkPackageChanges {
+  /** Version de la tâche lue par le client : OP refuse l'écriture si elle a changé depuis. */
+  lockVersion: number;
+  estimatedHours?: number | null;
+  remainingHours?: number | null;
+  assigneeId?: number | null;
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -46,6 +63,19 @@ export interface OpClient {
 export interface OpClientOptions {
   /** URL de l'instance, sans `/api/v3`. */
   baseUrl: string;
+}
+
+/** Corps de `PATCH /work_packages/:id` : durées en ISO 8601, assigné en lien HAL. */
+function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigneeId }: WorkPackageChanges) {
+  const duration = (hours: number | null) => (hours === null ? null : hoursToIsoDuration(hours));
+  return {
+    lockVersion,
+    ...(estimatedHours !== undefined && { estimatedTime: duration(estimatedHours) }),
+    ...(remainingHours !== undefined && { remainingTime: duration(remainingHours) }),
+    ...(assigneeId !== undefined && {
+      _links: { assignee: { href: assigneeId === null ? null : `/api/v3/users/${assigneeId}` } },
+    }),
+  };
 }
 
 function errorForStatus(status: number): OpError {
@@ -66,29 +96,50 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
       const authorization = `Basic ${Buffer.from(`apikey:${token}`).toString("base64")}`;
 
       /** `label` identifie la ressource dans les messages d'erreur, sans query string. */
-      const getUrl = <T>(url: string, label: string, schema: z.ZodType<T>): ResultAsync<T, OpError> =>
-        ResultAsync.fromPromise(
+      const parse = <T>(body: unknown, label: string, schema: z.ZodType<T>): ResultAsync<T, OpError> => {
+        const parsed = schema.safeParse(body);
+        return parsed.success
+          ? okAsync(parsed.data)
+          : errAsync(new OpInvalidResponseError(`${label} : ${z.prettifyError(parsed.error)}`));
+      };
+
+      const send = <T>(
+        url: string,
+        label: string,
+        schema: z.ZodType<T>,
+        { method = "GET", body }: { method?: string; body?: object } = {},
+      ): ResultAsync<T, OpError> => {
+        const readJson = (response: Response) =>
+          ResultAsync.fromPromise(
+            response.json() as Promise<unknown>,
+            () => new OpInvalidResponseError(`${label} : corps JSON illisible`),
+          );
+        return ResultAsync.fromPromise(
           fetch(url, {
-            headers: { authorization, accept: "application/hal+json" },
+            method,
+            headers: {
+              authorization,
+              accept: "application/hal+json",
+              ...(body && { "content-type": "application/json" }),
+            },
+            body: body && JSON.stringify(body),
             signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
           }),
           (cause) => new OpUnavailableError(cause instanceof Error ? cause.message : "requête impossible"),
         )
           .andThen((response) => {
+            if (response.status === 422) {
+              return readJson(response)
+                .andThen((error) => parse(error, label, opRejectionSchema))
+                .andThen((reasons) => errAsync(new OpRejectedError(reasons)));
+            }
             if (!response.ok) return errAsync(errorForStatus(response.status));
-            return ResultAsync.fromPromise(
-              response.json() as Promise<unknown>,
-              () => new OpInvalidResponseError("corps JSON illisible"),
-            );
+            return readJson(response);
           })
-          .andThen((body) => {
-            const parsed = schema.safeParse(body);
-            return parsed.success
-              ? okAsync(parsed.data)
-              : errAsync(new OpInvalidResponseError(`${label} : ${z.prettifyError(parsed.error)}`));
-          });
+          .andThen((json) => parse(json, label, schema));
+      };
 
-      const get = <T>(path: string, schema: z.ZodType<T>) => getUrl(`${apiRoot}${path}`, path, schema);
+      const get = <T>(path: string, schema: z.ZodType<T>) => send(`${apiRoot}${path}`, path, schema);
 
       /** Suit les liens `nextByOffset` d'une collection jusqu'à la dernière page. */
       const getAll = <T>(
@@ -98,7 +149,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
       ): ResultAsync<T[], OpError> => {
         const pageSchema = opCollectionPageSchema(element);
         const fetchFrom = (url: string, previous: T[]): ResultAsync<T[], OpError> =>
-          getUrl(url, path, pageSchema).andThen((page) => {
+          send(url, path, pageSchema).andThen((page) => {
             const elements = [...previous, ...page._embedded.elements];
             const next = page._links.nextByOffset;
             // Une page vide qui annonce une suite bouclerait sans fin.
@@ -125,6 +176,15 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             query: { filters: "[]", sortBy: JSON.stringify([["id", "asc"]]) },
           }),
         getWorkPackage: (id) => get(`/work_packages/${id}`, opWorkPackageDetailSchema),
+        updateWorkPackage: (id, changes) =>
+          send(`${apiRoot}/work_packages/${id}`, `/work_packages/${id}`, opWorkPackageDetailSchema, {
+            method: "PATCH",
+            body: workPackagePatch(changes),
+          }),
+        listAvailableAssignees: (workPackageId) =>
+          getAll(`/work_packages/${workPackageId}/available_assignees`, opAvailableAssigneeSchema).map((assignees) =>
+            assignees.filter((assignee) => assignee !== null),
+          ),
       };
     },
   };

@@ -30,6 +30,9 @@ export function sendOpRouteError(reply: FastifyReply, error: OpRouteError, messa
       });
     case "OpNotFound":
       return reply.code(404).send({ error: "op_not_found", message: messages.notFound ?? "Ressource introuvable dans OpenProject." });
+    case "OpRejected":
+      // Le message d'OP dit quelle valeur pose problème : l'utilisateur peut corriger sa saisie.
+      return reply.code(422).send({ error: "op_rejected", message: error.message });
     case "OpUnavailable":
       return reply
         .code(503)

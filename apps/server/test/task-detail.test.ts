@@ -45,6 +45,7 @@ describe("détail d'une tâche", () => {
       projectId: 1,
       subject: "Enfant",
       parentId: 10,
+      assigneeId: opAlice.id,
       estimatedTime: "PT2H30M",
       remainingTime: "PT45M",
     });
@@ -56,20 +57,27 @@ describe("détail d'une tâche", () => {
       task: {
         id: 11,
         subject: "Enfant",
+        lockVersion: 0,
         estimatedHours: 2.5,
         remainingHours: 0.75,
+        assignee: { id: opAlice.id, name: "Alice OP" },
         parent: { id: 10, subject: "Parent" },
       },
     });
   });
 
-  it("renvoie des temps nuls et aucun parent pour une tâche racine sans estimation", async () => {
+  it("renvoie des temps nuls, ni assigné ni parent pour une tâche racine sans estimation", async () => {
     op.addWorkPackage({ id: 10, projectId: 1, subject: "Racine" });
 
     const response = await getTask(10);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().task).toMatchObject({ estimatedHours: null, remainingHours: null, parent: null });
+    expect(response.json().task).toMatchObject({
+      estimatedHours: null,
+      remainingHours: null,
+      assignee: null,
+      parent: null,
+    });
   });
 
   it.each([
@@ -114,6 +122,7 @@ describe("détail d'une tâche", () => {
         subject: "Enfant d'un parent invisible",
         estimatedTime: null,
         remainingTime: null,
+        lockVersion: 0,
         _links: {
           status: { href: "/api/v3/statuses/1", title: "New" },
           assignee: { href: null },
