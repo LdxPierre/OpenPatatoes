@@ -1,6 +1,6 @@
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Les tables connexions OP et external_refs sont ajoutées par les tranches qui en ont besoin.
+// La table external_refs est ajoutée par la tranche qui en a besoin.
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -18,4 +18,14 @@ export const sessions = pgTable("sessions", {
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Jeton d'API OP d'un utilisateur, chiffré en AES-256-GCM (voir `op/token-cipher.ts`) ; jamais en clair. */
+export const opConnections = pgTable("op_connections", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  encryptedToken: text("encrypted_token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -1,10 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { buildApp } from "../src/app.js";
+import { buildTestApp } from "./support/app.js";
 import { createTestDatabase, resetDatabase } from "./support/database.js";
 
 describe("GET /api/health", () => {
   const db = createTestDatabase();
-  const app = buildApp({ db, cookie: { secure: false } });
+  const app = buildTestApp(db);
 
   beforeEach(() => resetDatabase(db));
   afterAll(async () => {
