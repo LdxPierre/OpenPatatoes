@@ -4,6 +4,7 @@ import type { AppDependencies } from '../app.js'
 import { z } from 'zod'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
+import { buildTaskTree } from '../tasks/hierarchy.js'
 import { sendOpRouteError } from './op-errors.js'
 
 const projectParamsSchema = z.object({
@@ -33,6 +34,23 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.getProject(params.data.id))
       return result.match(
         project => ({ project }) satisfies ProjectResponse,
+        error => sendOpRouteError(reply, error),
+      )
+    })
+
+    /** Arbre des tâches du projet, construit depuis une seule liste OP (toutes pages suivies). */
+    app.get('/projects/:id/tasks', async (request, reply) => {
+      const params = projectParamsSchema.safeParse(request.params)
+      if (!params.success)
+        return reply.code(400).send({ error: 'invalid_request' })
+
+      const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
+        api.listProjectWorkPackages(params.data.id),
+      )
+      return result.match(
+        workPackages => ({
+          tasks: buildTaskTree(workPackages),
+        }),
         error => sendOpRouteError(reply, error),
       )
     })
