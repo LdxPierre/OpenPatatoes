@@ -73,13 +73,13 @@ describe("édition du temps et de l'assigné d'une tâche", () => {
     [0, "PT0H"],
     [1 / 3, "PT0.3333333333333333H"],
     [0.0000001, "PT0.0000001H"],
-  ])("convertit %d heures décimales en durée ISO 8601 %s à l'écriture", async (hours, duration) => {
+  ])("convertit %s heures décimales en durée ISO 8601 %s à l'écriture", async (hours, duration) => {
     const response = await patchTask(10, { lockVersion: 0, estimatedHours: hours, remainingHours: hours });
 
     expect(response.statusCode).toBe(200);
     expect(task.estimatedTime).toBe(duration);
     expect(task.remainingTime).toBe(duration);
-    // Relue, la durée redonne exactement la valeur saisie.
+    // Le faux OP conserve la durée telle quelle : on vérifie que notre conversion est sans perte.
     expect(response.json().task).toMatchObject({ estimatedHours: hours, remainingHours: hours });
   });
 
@@ -117,7 +117,7 @@ describe("édition du temps et de l'assigné d'une tâche", () => {
     expect(response.json().task.assignee).toBeNull();
   });
 
-  it("renvoie le refus d'OP avec son message, sans rien modifier", async () => {
+  it("renvoie le refus d'OP avec son message et l'état réel de la tâche, sans rien modifier", async () => {
     const outsider = op.addUser({ name: "Externe", token: "tok-externe" });
 
     const response = await patchTask(10, { lockVersion: 0, estimatedHours: 3, assigneeId: outsider.id });
@@ -126,9 +126,40 @@ describe("édition du temps et de l'assigné d'une tâche", () => {
     expect(response.json()).toEqual({
       error: "op_rejected",
       message: "OpenProject a refusé la modification : Assignee is not set to one of the allowed values.",
+      task: {
+        id: 10,
+        subject: "Tâche",
+        lockVersion: 0,
+        estimatedHours: 8,
+        remainingHours: 4,
+        assignee: null,
+        parent: null,
+      },
     });
     const reloaded = await getTask(10);
     expect(reloaded.json().task).toMatchObject({ lockVersion: 0, estimatedHours: 8, assignee: null });
+  });
+
+  it("signale le refus d'OP même si la tâche ne peut pas être relue", async () => {
+    op.interceptNext({
+      method: "PATCH",
+      path: "/api/v3/work_packages/10",
+      status: 422,
+      body: {
+        _type: "Error",
+        errorIdentifier: "urn:openproject-org:api:v3:errors:PropertyConstraintViolation",
+        message: "Work must be greater than or equal to 0.",
+      },
+    });
+    op.interceptNext({ method: "GET", path: "/api/v3/work_packages/10", status: 503 });
+
+    const response = await patchTask(10, { lockVersion: 0, estimatedHours: 1 });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toEqual({
+      error: "op_rejected",
+      message: "OpenProject a refusé la modification : Work must be greater than or equal to 0.",
+    });
   });
 
   it("restitue chaque message quand OP refuse plusieurs champs", async () => {

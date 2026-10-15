@@ -103,11 +103,11 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
           : errAsync(new OpInvalidResponseError(`${label} : ${z.prettifyError(parsed.error)}`));
       };
 
-      const send = <T>(
+      const request = <T>(
         url: string,
         label: string,
         schema: z.ZodType<T>,
-        { method = "GET", body }: { method?: string; body?: object } = {},
+        { method = "GET", body }: { method?: "GET" | "PATCH"; body?: object } = {},
       ): ResultAsync<T, OpError> => {
         const readJson = (response: Response) =>
           ResultAsync.fromPromise(
@@ -139,7 +139,9 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
           .andThen((json) => parse(json, label, schema));
       };
 
-      const get = <T>(path: string, schema: z.ZodType<T>) => send(`${apiRoot}${path}`, path, schema);
+      const get = <T>(path: string, schema: z.ZodType<T>) => request(`${apiRoot}${path}`, path, schema);
+      const patch = <T>(path: string, schema: z.ZodType<T>, body: object) =>
+        request(`${apiRoot}${path}`, path, schema, { method: "PATCH", body });
 
       /** Suit les liens `nextByOffset` d'une collection jusqu'à la dernière page. */
       const getAll = <T>(
@@ -149,7 +151,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
       ): ResultAsync<T[], OpError> => {
         const pageSchema = opCollectionPageSchema(element);
         const fetchFrom = (url: string, previous: T[]): ResultAsync<T[], OpError> =>
-          send(url, path, pageSchema).andThen((page) => {
+          request(url, path, pageSchema).andThen((page) => {
             const elements = [...previous, ...page._embedded.elements];
             const next = page._links.nextByOffset;
             // Une page vide qui annonce une suite bouclerait sans fin.
@@ -177,10 +179,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
           }),
         getWorkPackage: (id) => get(`/work_packages/${id}`, opWorkPackageDetailSchema),
         updateWorkPackage: (id, changes) =>
-          send(`${apiRoot}/work_packages/${id}`, `/work_packages/${id}`, opWorkPackageDetailSchema, {
-            method: "PATCH",
-            body: workPackagePatch(changes),
-          }),
+          patch(`/work_packages/${id}`, opWorkPackageDetailSchema, workPackagePatch(changes)),
         listAvailableAssignees: (workPackageId) =>
           getAll(`/work_packages/${workPackageId}/available_assignees`, opAvailableAssigneeSchema).map((assignees) =>
             assignees.filter((assignee) => assignee !== null),

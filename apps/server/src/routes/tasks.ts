@@ -45,19 +45,27 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       );
     });
 
-    /** Modifie le temps estimé, le temps restant ou l'assigné ; renvoie la tâche telle qu'OP l'a enregistrée. */
+    /**
+     * Modifie le temps estimé, le temps restant ou l'assigné ; renvoie la tâche telle qu'OP l'a enregistrée.
+     * Un refus d'OP renvoie aussi l'état réel de la tâche, pour que l'interface annule sa modification.
+     */
     app.patch("/tasks/:id", async (request, reply) => {
       const params = idParamsSchema.safeParse(request.params);
       const changes = taskChangesSchema.safeParse(request.body);
       if (!params.success || !changes.success) return reply.code(400).send({ error: "invalid_request" });
+      const { id } = params.data;
 
-      const result = await opApiForUser(deps, currentUserId(request)).andThen((api) =>
-        api.updateWorkPackage(params.data.id, changes.data),
-      );
-      return result.match(
-        (task) => ({ task }),
-        (error) => sendOpRouteError(reply, error, taskErrorMessages),
-      );
+      const api = await opApiForUser(deps, currentUserId(request));
+      if (api.isErr()) return sendOpRouteError(reply, api.error, taskErrorMessages);
+
+      const updated = await api.value.updateWorkPackage(id, changes.data);
+      if (updated.isOk()) return { task: updated.value };
+      if (updated.error._tag !== "OpRejected") return sendOpRouteError(reply, updated.error, taskErrorMessages);
+
+      // Sans relecture possible, le refus reste signalé ; l'interface rechargera la tâche.
+      const current = await api.value.getWorkPackage(id);
+      if (current.isErr()) return sendOpRouteError(reply, updated.error, taskErrorMessages);
+      return reply.code(422).send({ error: "op_rejected", message: updated.error.message, task: current.value });
     });
 
     /** Utilisateurs à qui la tâche peut être assignée. */
