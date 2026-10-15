@@ -1,0 +1,15 @@
+# PostgreSQL pour le développement local et les tests d'intégration.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: openpatatoes
+      POSTGRES_PASSWORD: openpatatoes
+      POSTGRES_DB: openpatatoes
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
