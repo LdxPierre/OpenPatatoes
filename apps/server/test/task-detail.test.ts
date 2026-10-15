@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { hashPassword } from '../src/auth/password.js'
 import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { users } from '../src/db/schema.js'
-import { buildTestApp } from './support/app.js'
+import { buildTestApp, connectAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
 import { startFakeOp } from './support/fake-op.js'
 
@@ -31,30 +31,13 @@ describe('détail d\'une tâche', () => {
       name: 'Alpha',
       memberIds: [opAlice.id],
     })
-    session = await connectAs(alice, 'tok-alice')
+    session = await connectAs(app, alice, 'tok-alice')
   })
   afterAll(async () => {
     await app.close()
     await op.close()
     await db.$client.end()
   })
-
-  /** Connecte le compte et enregistre son jeton OP. */
-  async function connectAs(account: { username: string, password: string }, token: string): Promise<string> {
-    const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: account })
-    const cookie = login.cookies.find(c => c.name === SESSION_COOKIE)
-    if (!cookie)
-      throw new Error('cookie de session absent')
-    const saved = await app.inject({
-      method: 'PUT',
-      url: '/api/profile/op-connection',
-      cookies: { [SESSION_COOKIE]: cookie.value },
-      payload: { token },
-    })
-    if (saved.statusCode !== 200)
-      throw new Error(`jeton refusé : ${saved.body}`)
-    return cookie.value
-  }
 
   function getTask(taskId: number | string) {
     return app.inject({
@@ -105,11 +88,12 @@ describe('détail d\'une tâche', () => {
     ['PT90M', 1.5],
     ['PT1.5H', 1.5],
     ['PT0,25H', 0.25],
-    ['PT20M', 0.33],
+    ['PT20M', 1 / 3],
     ['PT1H0M36S', 1.01],
+    // OP 17 compte 24 h par jour : 26 h sont émises en `P1DT2H`.
     ['P1DT2H', 26],
     ['P1W', 168],
-  ])('convertit la durée OP %s en %d heures décimales', async (duration, hours) => {
+  ])('convertit la durée OP %s en %d heures décimales, sans arrondi', async (duration, hours) => {
     op.addWorkPackage({
       id: 10,
       projectId: 1,
@@ -121,7 +105,9 @@ describe('détail d\'une tâche', () => {
     const response = await getTask(10)
 
     expect(response.statusCode).toBe(200)
-    expect(response.json().task).toMatchObject({ estimatedHours: hours, remainingHours: hours })
+    const { estimatedHours, remainingHours } = response.json().task
+    expect(estimatedHours).toBeCloseTo(hours, 10)
+    expect(remainingHours).toBeCloseTo(hours, 10)
   })
 
   it.each([
@@ -131,6 +117,8 @@ describe('détail d\'une tâche', () => {
     'PT',
     'P',
     'PTH',
+    'P1DT',
+    '-PT1H',
   ])('rejette la durée OP non exploitable %s', async (duration) => {
     op.addWorkPackage({
       id: 10,

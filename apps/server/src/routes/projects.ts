@@ -2,16 +2,11 @@ import type { ProjectResponse, ProjectsResponse, TaskTreeResponse } from '@openp
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import { ResultAsync } from 'neverthrow'
-import { z } from 'zod'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
 import { buildTaskTree } from '../tasks/hierarchy.js'
 import { sendOpRouteError } from './op-errors.js'
-
-const projectParamsSchema = z.object({
-  // Au-delà des entiers sûrs, `Number` arrondirait l'identifiant et OP recevrait un autre projet, ou `1e+21`.
-  id: z.string().regex(/^[1-9]\d*$/).transform(Number).refine(Number.isSafeInteger),
-})
+import { idParamsSchema } from './params.js'
 
 /** Projets OP visibles avec le jeton de l'utilisateur connecté. */
 export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
@@ -28,7 +23,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
 
     /** Ouverture d'un projet : sert d'en-tête à sa vue de tâches. */
     app.get('/projects/:id', async (request, reply) => {
-      const params = projectParamsSchema.safeParse(request.params)
+      const params = idParamsSchema.safeParse(request.params)
       if (!params.success)
         return reply.code(400).send({ error: 'invalid_request' })
 
@@ -41,7 +36,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
 
     /** Arbre des tâches du projet, construit depuis une seule liste OP (toutes pages suivies). */
     app.get('/projects/:id/tasks', async (request, reply) => {
-      const params = projectParamsSchema.safeParse(request.params)
+      const params = idParamsSchema.safeParse(request.params)
       if (!params.success)
         return reply.code(400).send({ error: 'invalid_request' })
 

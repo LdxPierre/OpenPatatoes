@@ -1,12 +1,18 @@
 /**
  * Durées ISO 8601 d'OP (`PT2H30M`, `P1DT2H`...) vers des heures décimales.
  *
- * Semaines et jours valent 7 × 24 h et 24 h ; mois et années, de longueur variable,
- * ne sont pas convertibles et donnent `null`. Le résultat est arrondi au centième d'heure.
+ * OP 17 émet ses durées depuis un nombre d'heures (gem `ruby-duration`) : 26 h donnent
+ * `P1DT2H`, un jour vaut donc 24 h, pas une journée de travail. Les semaines (7 × 24 h)
+ * sont acceptées par prudence ; mois et années, de longueur variable, donnent `null`.
+ * Aucun arrondi : la valeur exacte doit survivre à une relecture puis une réécriture.
  */
 
-const ISO_DURATION
-  = /^P(?:(?<weeks>\d+(?:[.,]\d+)?)W)?(?:(?<days>\d+(?:[.,]\d+)?)D)?(?:T(?:(?<hours>\d+(?:[.,]\d+)?)H)?(?:(?<minutes>\d+(?:[.,]\d+)?)M)?(?:(?<seconds>\d+(?:[.,]\d+)?)S)?)?$/
+const NUMBER = String.raw`\d+(?:[.,]\d+)?`
+const ISO_DURATION = new RegExp(
+  // Au moins une composante après `P`, et au moins une après `T` s'il est présent.
+  String.raw`^P(?=\d|T\d)(?:(?<weeks>${NUMBER})W)?(?:(?<days>${NUMBER})D)?`
+  + String.raw`(?:T(?=\d)(?:(?<hours>${NUMBER})H)?(?:(?<minutes>${NUMBER})M)?(?:(?<seconds>${NUMBER})S)?)?$`,
+)
 
 const HOURS_PER_UNIT = {
   weeks: 168,
@@ -17,9 +23,6 @@ const HOURS_PER_UNIT = {
 } as const
 
 export function isoDurationToHours(duration: string): number | null {
-  // `P` ou `PT` seuls ne portent aucune valeur.
-  if (duration === 'P' || duration.endsWith('T'))
-    return null
   const groups = ISO_DURATION.exec(duration)?.groups
   if (!groups)
     return null
@@ -30,5 +33,5 @@ export function isoDurationToHours(duration: string): number | null {
     if (value !== undefined)
       hours += Number(value.replace(',', '.')) * factor
   }
-  return Math.round(hours * 100) / 100
+  return hours
 }
