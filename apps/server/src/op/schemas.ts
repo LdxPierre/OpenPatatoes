@@ -63,7 +63,7 @@ export const opWorkPackageSchema = z
 export type OpWorkPackage = z.output<typeof opWorkPackageSchema>;
 
 /** Durée ISO 8601 d'OP convertie en heures décimales ; `null` (ou absente) si non renseignée. */
-const opDurationSchema = z
+const opDurationAsHoursSchema = z
   .string()
   .nullish()
   .transform((duration, ctx) => {
@@ -85,8 +85,8 @@ export const opWorkPackageDetailSchema = z
     _type: z.literal("WorkPackage"),
     id: z.number().int(),
     subject: z.string(),
-    estimatedTime: opDurationSchema,
-    remainingTime: opDurationSchema,
+    estimatedTime: opDurationAsHoursSchema,
+    remainingTime: opDurationAsHoursSchema,
     _links: z.object({ parent: opOptionalLinkSchema }),
   })
   .transform(({ id, subject, estimatedTime, remainingTime, _links }) => ({

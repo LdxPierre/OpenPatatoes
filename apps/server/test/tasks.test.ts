@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/auth/password.js";
 import { SESSION_COOKIE } from "../src/auth/plugin.js";
 import { users } from "../src/db/schema.js";
-import { buildTestApp } from "./support/app.js";
+import { buildTestApp, connectAs } from "./support/app.js";
 import { createTestDatabase, resetDatabase } from "./support/database.js";
 import { FAKE_STATUSES, startFakeOp, type FakeOp, type FakeUser } from "./support/fake-op.js";
 
@@ -37,7 +37,7 @@ describe("arbre des tâches d'un projet", () => {
     await db.insert(users).values({ username: alice.username, passwordHash: await hashPassword(alice.password) });
     opAlice = op.addUser({ name: "Alice OP", token: "tok-alice" });
     op.addProject({ id: 1, identifier: "alpha", name: "Alpha", memberIds: [opAlice.id] });
-    session = await connectAs(alice, "tok-alice");
+    session = await connectAs(app, alice, "tok-alice");
   });
   afterAll(async () => {
     await app.close();
@@ -45,20 +45,6 @@ describe("arbre des tâches d'un projet", () => {
     await db.$client.end();
   });
 
-  /** Connecte le compte et enregistre son jeton OP. */
-  async function connectAs(account: { username: string; password: string }, token: string): Promise<string> {
-    const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: account });
-    const cookie = login.cookies.find((c) => c.name === SESSION_COOKIE);
-    if (!cookie) throw new Error("cookie de session absent");
-    const saved = await app.inject({
-      method: "PUT",
-      url: "/api/profile/op-connection",
-      cookies: { [SESSION_COOKIE]: cookie.value },
-      payload: { token },
-    });
-    if (saved.statusCode !== 200) throw new Error(`jeton refusé : ${saved.body}`);
-    return cookie.value;
-  }
 
   function getTasks(projectId: number | string = 1) {
     return app.inject({ method: "GET", url: `/api/projects/${projectId}/tasks`, cookies: { [SESSION_COOKIE]: session } });
