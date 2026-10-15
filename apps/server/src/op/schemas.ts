@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isoDurationToHours } from './duration.js'
 
 /**
  * Schémas Zod des réponses de l'API OP v3 (HAL). Ils ne retiennent que les champs
@@ -85,6 +86,44 @@ export const opStatusSchema = z
   .transform(({ id, name, isClosed }) => ({ id, name, isClosed }))
 
 export type OpStatus = z.output<typeof opStatusSchema>
+
+/** Durée ISO 8601 d'OP convertie en heures décimales ; `null` (ou absente) si non renseignée. */
+const opDurationSchema = z
+  .string()
+  .nullish()
+  .transform((duration, ctx) => {
+    if (duration == null)
+      return null
+    const hours = isoDurationToHours(duration)
+    if (hours === null) {
+      ctx.addIssue({ code: 'custom', message: `durée ISO 8601 inexploitable : ${duration}` })
+      return z.NEVER
+    }
+    return hours
+  })
+
+/**
+ * Tâche lue pour son détail. Schéma distinct de la liste : une durée inexploitable
+ * sur une tâche ne doit pas faire échouer l'arbre de tout le projet.
+ */
+export const opWorkPackageDetailSchema = z
+  .object({
+    _type: z.literal('WorkPackage'),
+    id: z.number().int(),
+    subject: z.string(),
+    estimatedTime: opDurationSchema,
+    remainingTime: opDurationSchema,
+    _links: z.object({ parent: opOptionalLinkSchema }),
+  })
+  .transform(({ id, subject, estimatedTime, remainingTime, _links }) => ({
+    id,
+    subject,
+    estimatedHours: estimatedTime,
+    remainingHours: remainingTime,
+    parent: _links.parent && { id: _links.parent.id, subject: _links.parent.name },
+  }))
+
+export type OpWorkPackageDetail = z.output<typeof opWorkPackageDetailSchema>
 
 /**
  * Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages.

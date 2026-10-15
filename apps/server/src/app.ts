@@ -9,6 +9,7 @@ import { authRoutes } from './routes/auth.js'
 import { healthRoutes } from './routes/health.js'
 import { opConnectionRoutes } from './routes/op-connection.js'
 import { projectRoutes } from './routes/projects.js'
+import { taskRoutes } from './routes/tasks.js'
 
 export interface AppDependencies {
   db: Database
@@ -30,6 +31,7 @@ export function buildApp(deps: AppDependencies, options: AppOptions = {}): Fasti
   app.register(authRoutes(deps), { prefix: '/api' })
   app.register(opConnectionRoutes(deps), { prefix: '/api' })
   app.register(projectRoutes(deps), { prefix: '/api' })
+  app.register(taskRoutes(deps), { prefix: '/api' })
 
   return app
 }

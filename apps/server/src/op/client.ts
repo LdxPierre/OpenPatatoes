@@ -1,5 +1,5 @@
 import type { OpError } from './errors.js'
-import type { OpProject, OpStatus, OpUser, OpWorkPackage } from './schemas.js'
+import type { OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -16,6 +16,7 @@ import {
   opProjectSchema,
   opStatusSchema,
   opUserSchema,
+  opWorkPackageDetailSchema,
   opWorkPackageSchema,
 } from './schemas.js'
 
@@ -35,6 +36,8 @@ export interface OpApi {
   listProjectWorkPackages: (projectId: number) => ResultAsync<OpWorkPackage[], OpError>
   /** Tous les statuts de l'instance, avec leur caractère fermé. */
   listStatuses: () => ResultAsync<OpStatus[], OpError>
+  /** Une tâche, durées converties en heures décimales. */
+  getWorkPackage: (id: number) => ResultAsync<OpWorkPackageDetail, OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -142,6 +145,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             },
           }),
         listStatuses: () => getAll('/statuses', opStatusSchema),
+        getWorkPackage: id => get(`/work_packages/${id}`, opWorkPackageDetailSchema),
       }
     },
   }
