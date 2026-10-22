@@ -4,7 +4,7 @@ import { createTestDatabase, resetDatabase } from "./support/database.js";
 
 describe("GET /api/health", () => {
   const db = createTestDatabase();
-  const app = buildApp({ db });
+  const app = buildApp({ db, cookie: { secure: false } });
 
   beforeEach(() => resetDatabase(db));
   afterAll(async () => {
