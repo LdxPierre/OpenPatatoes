@@ -11,30 +11,48 @@ import { terre, vitelotte } from './primitives'
 /** Classe posée sur <html> quand le thème sombre est actif. */
 export const darkModeClass = 'op-dark'
 
-const feedback = (light: [string, string], dark: [string, string]) => ({
-  background: `light-dark(${light[0]}, ${dark[0]})`,
-  color: `light-dark(${light[1]}, ${dark[1]})`,
-})
+function feedback(light: [string, string], dark: [string, string]) {
+  return {
+    background: `light-dark(${light[0]}, ${dark[0]})`,
+    color: `light-dark(${light[1]}, ${dark[1]})`,
+  }
+}
 
-const messageSeverity = (group: string) => ({
-  background: `{app.${group}.background}`,
-  borderColor: `{app.${group}.background}`,
-  color: `{app.${group}.color}`,
-  shadow: 'none',
-  outlined: { color: `{app.${group}.color}`, borderColor: `{app.${group}.color}` },
-  simple: { color: `{app.${group}.color}` },
-})
+function messageSeverity(group: string) {
+  return {
+    background: `{app.${group}.background}`,
+    borderColor: `{app.${group}.background}`,
+    color: `{app.${group}.color}`,
+    shadow: 'none',
+    outlined: { color: `{app.${group}.color}`, borderColor: `{app.${group}.color}` },
+    simple: { color: `{app.${group}.color}` },
+  }
+}
 
-const scale = (name: string, palette: object) =>
-  Object.fromEntries(Object.keys(palette).map((step) => [step, `{${name}.${step}}`]))
+function scale(name: string, palette: object) {
+  return Object.fromEntries(Object.keys(palette).map(step => [step, `{${name}.${step}}`]))
+}
 
 export const Vitelotte = definePreset(Aura, {
   primitive: {
-    borderRadius: { none: '0', xs: '2px', sm: '4px', md: '6px', lg: '8px', xl: '10px' },
+    borderRadius: {
+      none: '0',
+      xs: '2px',
+      sm: '4px',
+      md: '6px',
+      lg: '8px',
+      xl: '10px',
+    },
   },
   semantic: {
     transitionDuration: '0.15s',
-    focusRing: { width: '2px', style: 'solid', color: '{primary.color}', offset: '2px', shadow: 'none' },
+    focusRing: {
+      width: '2px',
+      style: 'solid',
+      color: '{primary.color}',
+      offset: '2px',
+      shadow: 'none',
+    },
     primary: {
       ...scale('vitelotte', vitelotte),
       color: 'light-dark({vitelotte.700}, {vitelotte.300})',

@@ -1,7 +1,7 @@
-import '@fontsource-variable/atkinson-hyperlegible-next'
-import './base.css'
 import type { PrimeVueConfiguration } from 'primevue/config'
 import { darkModeClass, Vitelotte } from './preset'
+import '@fontsource-variable/atkinson-hyperlegible-next'
+import './base.css'
 
 export { statusFamilies, statusFamilyLabels, statusFamilyOf, statusFamilyVars } from './status-families'
 export type { StatusFamily } from './status-families'

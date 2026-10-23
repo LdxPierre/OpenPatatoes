@@ -1,7 +1,7 @@
 {
   "name": "openpatatoes",
-  "private": true,
   "type": "module",
+  "private": true,
   "packageManager": "pnpm@10.10.0",
   "engines": {
     "node": ">=22"
@@ -12,6 +12,12 @@
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "db:generate": "pnpm --filter @openpatatoes/server run db:generate",
-    "db:migrate": "pnpm --filter @openpatatoes/server run db:migrate"
+    "db:migrate": "pnpm --filter @openpatatoes/server run db:migrate",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^10.0.0",
+    "eslint": "^10.13.0"
   }
 }

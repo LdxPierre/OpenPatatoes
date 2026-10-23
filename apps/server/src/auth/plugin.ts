@@ -1,18 +1,19 @@
-import type { FastifyReply, FastifyRequest, onRequestHookHandler } from "fastify";
-import type { Database } from "../db/client.js";
-import { SESSION_DURATION_MS, validateSession, type SessionUser } from "./sessions.js";
+import type { FastifyReply, FastifyRequest, onRequestHookHandler } from 'fastify'
+import type { Database } from '../db/client.js'
+import type { SessionUser } from './sessions.js'
+import { SESSION_DURATION_MS, validateSession } from './sessions.js'
 
-export const SESSION_COOKIE = "openpatatoes_session";
+export const SESSION_COOKIE = 'openpatatoes_session'
 
-declare module "fastify" {
+declare module 'fastify' {
   interface FastifyRequest {
     /** Utilisateur de la session courante ; renseigné uniquement sur les routes privées. */
-    user: SessionUser | null;
+    user: SessionUser | null
   }
 }
 
 export interface SessionCookieOptions {
-  secure: boolean;
+  secure: boolean
 }
 
 export function setSessionCookie(
@@ -24,27 +25,35 @@ export function setSessionCookie(
   reply.setCookie(SESSION_COOKIE, token, {
     httpOnly: true,
     secure,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
     expires: expiresAt,
     maxAge: SESSION_DURATION_MS / 1000,
-  });
+  })
 }
 
 export function clearSessionCookie(reply: FastifyReply, { secure }: SessionCookieOptions): void {
-  reply.clearCookie(SESSION_COOKIE, { httpOnly: true, secure, sameSite: "lax", path: "/" });
+  reply.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    secure,
+    sameSite: 'lax',
+    path: '/',
+  })
 }
 
 /** Hook des routes privées : refuse la requête sans session valide et prolonge la session sinon. */
 export function requireSession(db: Database, cookie: SessionCookieOptions): onRequestHookHandler {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const token = request.cookies[SESSION_COOKIE];
-    const session = token ? await validateSession(db, token) : null;
+    const token = request.cookies[SESSION_COOKIE]
+    const session = token
+      ? await validateSession(db, token)
+      : null
     if (!token || !session) {
-      if (token) clearSessionCookie(reply, cookie);
-      return reply.code(401).send({ error: "unauthenticated" });
+      if (token)
+        clearSessionCookie(reply, cookie)
+      return reply.code(401).send({ error: 'unauthenticated' })
     }
-    request.user = session.user;
-    setSessionCookie(reply, token, session.expiresAt, cookie);
-  };
+    request.user = session.user
+    setSessionCookie(reply, token, session.expiresAt, cookie)
+  }
 }
