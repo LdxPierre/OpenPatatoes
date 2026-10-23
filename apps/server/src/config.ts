@@ -1,8 +1,10 @@
-import { z } from "zod";
+import { Buffer } from 'node:buffer'
+import process from 'node:process'
+import { z } from 'zod'
 
 const configSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
-  HOST: z.string().default("0.0.0.0"),
+  HOST: z.string().default('0.0.0.0'),
   DATABASE_URL: z.url(),
   OP_BASE_URL: z.url(),
   /** Compte administrateur créé au premier démarrage s'il n'existe pas. */
@@ -13,16 +15,16 @@ const configSchema = z.object({
   /** Clé AES-256-GCM des jetons OP : 32 octets encodés en base64 (`openssl rand -base64 32`). */
   OP_TOKEN_ENCRYPTION_KEY: z
     .base64()
-    .transform((value) => Buffer.from(value, "base64"))
-    .refine((key) => key.length === 32, "La clé doit faire 32 octets une fois décodée"),
-});
+    .transform(value => Buffer.from(value, 'base64'))
+    .refine(key => key.length === 32, 'La clé doit faire 32 octets une fois décodée'),
+})
 
-export type Config = z.infer<typeof configSchema>;
+export type Config = z.infer<typeof configSchema>
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = configSchema.safeParse(env);
+  const parsed = configSchema.safeParse(env)
   if (!parsed.success) {
-    throw new Error(`Configuration invalide :\n${z.prettifyError(parsed.error)}`);
+    throw new Error(`Configuration invalide :\n${z.prettifyError(parsed.error)}`)
   }
-  return parsed.data;
+  return parsed.data
 }

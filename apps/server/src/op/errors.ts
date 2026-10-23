@@ -2,52 +2,52 @@
 
 /** OP ne reconnaît pas le jeton (401) : invalide, expiré ou révoqué. */
 export class OpUnauthenticatedError extends Error {
-  readonly _tag = "OpUnauthenticated";
+  readonly _tag = 'OpUnauthenticated'
 
   constructor() {
-    super("OpenProject a refusé le jeton d'API");
+    super('OpenProject a refusé le jeton d\'API')
   }
 }
 
 /** Le jeton est reconnu mais n'a pas la permission requise (403). */
 export class OpForbiddenError extends Error {
-  readonly _tag = "OpForbidden";
+  readonly _tag = 'OpForbidden'
 
   constructor() {
-    super("OpenProject refuse l'accès à cette ressource");
+    super('OpenProject refuse l\'accès à cette ressource')
   }
 }
 
 /** La ressource n'existe pas ou n'est pas visible avec ce jeton (404). */
 export class OpNotFoundError extends Error {
-  readonly _tag = "OpNotFound";
+  readonly _tag = 'OpNotFound'
 
   constructor() {
-    super("Ressource introuvable dans OpenProject");
+    super('Ressource introuvable dans OpenProject')
   }
 }
 
 /** OP est injoignable, trop lent ou répond par une erreur serveur. */
 export class OpUnavailableError extends Error {
-  readonly _tag = "OpUnavailable";
+  readonly _tag = 'OpUnavailable'
 
   constructor(detail: string) {
-    super(`OpenProject est indisponible : ${detail}`);
+    super(`OpenProject est indisponible : ${detail}`)
   }
 }
 
 /** La réponse d'OP ne correspond pas à ce que l'adaptateur attend (schéma Zod, statut imprévu). */
 export class OpInvalidResponseError extends Error {
-  readonly _tag = "OpInvalidResponse";
+  readonly _tag = 'OpInvalidResponse'
 
   constructor(detail: string) {
-    super(`Réponse inattendue d'OpenProject : ${detail}`);
+    super(`Réponse inattendue d'OpenProject : ${detail}`)
   }
 }
 
-export type OpError =
-  | OpUnauthenticatedError
-  | OpForbiddenError
-  | OpNotFoundError
-  | OpUnavailableError
-  | OpInvalidResponseError;
+export type OpError
+  = | OpUnauthenticatedError
+    | OpForbiddenError
+    | OpNotFoundError
+    | OpUnavailableError
+    | OpInvalidResponseError

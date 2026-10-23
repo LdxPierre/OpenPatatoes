@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: openpatatoes
       POSTGRES_DB: openpatatoes
     ports:
-      - "55432:5432"
+      - '55432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
 

@@ -1,7 +1,13 @@
 // Familles d'état : la couleur d'un statut OP vient de sa famille, jamais de
 // la couleur configurée dans OP. Le badge affiche toujours le nom du statut OP.
 
-export const statusFamilies = ['new', 'planned', 'active', 'onHold', 'closed'] as const
+export const statusFamilies = [
+  'new',
+  'planned',
+  'active',
+  'onHold',
+  'closed',
+] as const
 
 export type StatusFamily = (typeof statusFamilies)[number]
 
@@ -18,23 +24,51 @@ export const statusFamilyLabels: Record<StatusFamily, string> = {
 const defaultStatuses: Record<StatusFamily, readonly string[]> = {
   new: ['New', 'Nouveau'],
   planned: [
-    'In specification', 'Specified', 'Confirmed', 'To be scheduled', 'Scheduled',
-    'En spécification', 'Spécifié', 'Confirmé', 'À planifier', 'Planifié',
+    'In specification',
+    'Specified',
+    'Confirmed',
+    'To be scheduled',
+    'Scheduled',
+    'En spécification',
+    'Spécifié',
+    'Confirmé',
+    'À planifier',
+    'Planifié',
   ],
   active: [
-    'In progress', 'Developed', 'In testing', 'Tested',
-    'En cours', 'Développé', 'En test', 'Testé',
+    'In progress',
+    'Developed',
+    'In testing',
+    'Tested',
+    'En cours',
+    'Développé',
+    'En test',
+    'Testé',
   ],
-  onHold: ['On hold', 'Test failed', 'En attente', 'Test échoué'],
-  closed: ['Closed', 'Rejected', 'Fermé', 'Rejeté'],
+  onHold: [
+    'On hold',
+    'Test failed',
+    'En attente',
+    'Test échoué',
+  ],
+  closed: [
+    'Closed',
+    'Rejected',
+    'Fermé',
+    'Rejeté',
+  ],
 }
 
-const normalize = (name: string) =>
-  name.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+function normalize(name: string) {
+  return name.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+}
 
 const familyByName = new Map<string, StatusFamily>(
-  statusFamilies.flatMap((family) =>
-    defaultStatuses[family].map((name) => [normalize(name), family] as const),
+  statusFamilies.flatMap(family =>
+    defaultStatuses[family].map(name => [
+      normalize(name),
+      family,
+    ] as const),
   ),
 )
 
@@ -42,7 +76,7 @@ const familyByName = new Map<string, StatusFamily>(
  * Famille d'un statut OP. Un statut inconnu (ajouté par un administrateur OP)
  * tombe dans « Fermé » s'il est marqué fermé dans OP, sinon dans « Nouveau ».
  */
-export function statusFamilyOf(status: { name: string; isClosed: boolean }): StatusFamily {
+export function statusFamilyOf(status: { name: string, isClosed: boolean }): StatusFamily {
   return familyByName.get(normalize(status.name)) ?? (status.isClosed ? 'closed' : 'new')
 }
 
@@ -54,4 +88,6 @@ export function statusFamilyVars(family: StatusFamily) {
   }
 }
 
-const kebab = (value: string) => value.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)
+function kebab(value: string) {
+  return value.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)
+}

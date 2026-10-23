@@ -26,7 +26,9 @@ systemDark.addEventListener('change', (event) => {
 
 function readStoredMode(): ThemeMode {
   const stored = localStorage.getItem(storageKey)
-  return stored === 'light' || stored === 'dark' ? stored : 'system'
+  return stored === 'light' || stored === 'dark'
+    ? stored
+    : 'system'
 }
 
 function apply() {
@@ -35,7 +37,8 @@ function apply() {
 
 function setMode(next: ThemeMode) {
   mode.value = next
-  if (next === 'system') localStorage.removeItem(storageKey)
+  if (next === 'system')
+    localStorage.removeItem(storageKey)
   else localStorage.setItem(storageKey, next)
   apply()
 }
@@ -44,5 +47,9 @@ function setMode(next: ThemeMode) {
 export const applyThemeMode = apply
 
 export function useThemeMode() {
-  return { mode: readonly(mode), isDark, setMode }
+  return {
+    mode: readonly(mode),
+    isDark,
+    setMode,
+  }
 }

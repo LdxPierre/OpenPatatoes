@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
-import type { Database } from "../db/client.js";
-import { users } from "../db/schema.js";
-import { hashPassword } from "./password.js";
+import type { Database } from '../db/client.js'
+import { eq } from 'drizzle-orm'
+import { users } from '../db/schema.js'
+import { hashPassword } from './password.js'
 
 /**
  * Crée le compte administrateur s'il n'existe pas encore.
@@ -9,13 +9,14 @@ import { hashPassword } from "./password.js";
  */
 export async function ensureAdminAccount(
   db: Database,
-  admin: { username: string; password: string },
+  admin: { username: string, password: string },
 ): Promise<void> {
   const [existing] = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.username, admin.username));
-  if (existing) return;
+    .where(eq(users.username, admin.username))
+  if (existing)
+    return
 
   await db
     .insert(users)
@@ -24,5 +25,5 @@ export async function ensureAdminAccount(
       passwordHash: await hashPassword(admin.password),
       isAdmin: true,
     })
-    .onConflictDoNothing({ target: users.username });
+    .onConflictDoNothing({ target: users.username })
 }
