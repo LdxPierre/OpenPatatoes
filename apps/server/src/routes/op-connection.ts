@@ -1,18 +1,13 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import type { AppDependencies } from "../app.js";
-import { requireSession } from "../auth/plugin.js";
+import { currentUserId, requireSession } from "../auth/plugin.js";
 import { deleteOpToken, opApiForUser, saveOpToken } from "../op/connections.js";
 import { sendOpRouteError } from "./op-errors.js";
 
 const saveTokenBodySchema = z.object({
   token: z.string().trim().min(1),
 });
-
-function currentUserId(request: FastifyRequest): string {
-  if (!request.user) throw new Error("Route privée appelée sans utilisateur");
-  return request.user.id;
-}
 
 /** Jeton d'API OP de l'utilisateur connecté, dans son profil. */
 export function opConnectionRoutes(deps: AppDependencies): FastifyPluginAsync {
