@@ -80,7 +80,7 @@ export function statusFamilyOf(status: { name: string, isClosed: boolean }): Sta
   return familyByName.get(normalize(status.name)) ?? (status.isClosed ? 'closed' : 'new')
 }
 
-/** Variables CSS de la famille, produites par le preset (voir preset.ts). */
+/** Variables CSS de la famille, définies dans tokens.css. */
 export function statusFamilyVars(family: StatusFamily) {
   return {
     background: `var(--p-app-status-${kebab(family)}-background)`,

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import Message from 'primevue/message'
+import type { AlertVariants } from '@/shared/components/ui/alert'
 import { computed } from 'vue'
 import { ApiError } from '@/shared/api/api-fetch'
+import { Alert, AlertDescription } from '@/shared/components/ui/alert'
 import ThemeModeSelect from '@/theme/ThemeModeSelect.vue'
 import { useHealthQuery } from './use-health-query'
 
@@ -10,15 +11,15 @@ import { useHealthQuery } from './use-health-query'
 
 const health = useHealthQuery()
 
-const status = computed(() => {
+const status = computed((): { variant: AlertVariants['variant'], text: string } => {
   if (health.isPending.value)
-    return { severity: 'secondary', text: 'Vérification de l\'API…' }
+    return { variant: 'neutral', text: 'Vérification de l\'API…' }
   if (health.isSuccess.value)
-    return { severity: 'success', text: 'L\'API et la base répondent.' }
+    return { variant: 'success', text: 'L\'API et la base répondent.' }
   const error = health.error.value
   if (error instanceof ApiError && error.status === 503)
-    return { severity: 'warn', text: 'L\'API répond, mais la base est indisponible. Lancez PostgreSQL avec docker compose -f compose.dev.yml up -d.' }
-  return { severity: 'error', text: 'L\'API ne répond pas. Lancez le serveur avec pnpm dev.' }
+    return { variant: 'warn', text: 'L\'API répond, mais la base est indisponible. Lancez PostgreSQL avec docker compose -f compose.dev.yml up -d.' }
+  return { variant: 'error', text: 'L\'API ne répond pas. Lancez le serveur avec pnpm dev.' }
 })
 </script>
 
@@ -28,9 +29,9 @@ const status = computed(() => {
     <p class="lead">
       Socle de l'application. L'écran de connexion remplacera cette page.
     </p>
-    <Message :severity="status.severity" role="status">
-      {{ status.text }}
-    </Message>
+    <Alert :variant="status.variant" role="status">
+      <AlertDescription>{{ status.text }}</AlertDescription>
+    </Alert>
     <ThemeModeSelect />
   </main>
 </template>

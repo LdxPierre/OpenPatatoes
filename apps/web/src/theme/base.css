@@ -1,4 +1,4 @@
-/* Styles de base « Vitelotte ». Les couleurs viennent du preset (--p-…). */
+/* Styles de base « Vitelotte ». Les couleurs viennent de tokens.css (--p-…). */
 
 :root {
   --op-font: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
