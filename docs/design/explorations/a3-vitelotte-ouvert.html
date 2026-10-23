@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:grid;gap:28px;font-family:var(--font-sans);color:var(--foreground)}
+  .lede{margin:0;max-width:66ch;font-size:14px;line-height:1.55;color:var(--muted-foreground)}
+  .lede ul{margin:8px 0 0;padding-left:18px}
+  .lede li{margin:2px 0}
+  h2.sec{font-size:16px;margin:0 0 10px}
+
+  /* ---- tokens ---- */
+  .op{
+    --bg:#FAF9FB; --surface:#FFFFFF; --text:#2A2530; --muted:#6B6375; --line:#E7E2EC;
+    --brand:#4A2B5E; --brand-fg:#FFFFFF; --sel:#EFE7F5; --sel-edge:#4A2B5E; --hover:#F4F0F7; --guide:#CDBDDA;
+    --s-new-bg:#EEEBF1; --s-new:#5A5363;
+    --s-plan-bg:#E3EBF6; --s-plan:#2D4F7C;
+    --s-run-bg:#EADFF3; --s-run:#4A2B5E;
+    --s-wait-bg:#F7EACB; --s-wait:#7A5200;
+    --s-done-bg:#DCEBDF; --s-done:#2F6A3C;
+    --warn-bg:#F7EACB; --warn:#5C3E00;
+  }
+  .op.dark{
+    --bg:#1B1720; --surface:#221D28; --text:#ECE7F1; --muted:#A79EB3; --line:#332C3B;
+    --brand:#C7A8E0; --brand-fg:#1B1720; --sel:#33263F; --sel-edge:#C7A8E0; --hover:#28222E; --guide:#4E4258;
+    --s-new-bg:#2C2732; --s-new:#B8AFC3;
+    --s-plan-bg:#1E2A3B; --s-plan:#9DBBE3;
+    --s-run-bg:#3A2A4A; --s-run:#D6BFEB;
+    --s-wait-bg:#372C15; --s-wait:#EBC56E;
+    --s-done-bg:#1D3224; --s-done:#8FCB9B;
+    --warn-bg:#372C15; --warn:#F3D79A;
+  }
+
+  /* ---- mock ---- */
+  .op{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible Next',sans-serif;border-radius:var(--radius);padding:20px;font-size:14px}
+  .bar{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .bar h3{margin:0;font-size:20px;font-weight:700;color:var(--brand);letter-spacing:-.01em}
+  .bar .count{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+  .bar .tools{margin-left:auto;display:flex;gap:8px}
+  .field{font:inherit;font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 10px;width:170px}
+  .btn{font:inherit;font-size:13px;font-weight:500;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:6px;padding:5px 10px}
+  .grid{position:relative;margin:0 -8px}
+  .row{display:grid;grid-template-columns:minmax(0,1fr) 128px minmax(96px,150px) 64px;align-items:center;column-gap:24px;height:32px;padding:0 8px;border-radius:6px}
+  .head{height:28px;color:var(--muted);font-size:12.5px;border-radius:0;margin-bottom:4px;box-shadow:inset 0 -1px var(--line)}
+  .head span:first-child{padding-left:18px}
+  .head span:last-child{text-align:right}
+  .r:hover{background:var(--hover)}
+  .r.sel{background:var(--sel)}
+  .t{display:flex;align-items:center;min-width:0;height:100%}
+  .g{flex:none;height:100%;position:relative;width:calc(var(--d) * 20px)}
+  .g i{position:absolute;top:0;bottom:0;width:2px;background:var(--guide)}
+  .g i.elbow{bottom:50%;width:9px;background:none;border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:7px}
+  .g i.tee{background:var(--guide)}
+  .car{flex:none;width:18px;text-align:center;color:var(--muted);font-size:11px}
+  .leaf .car{visibility:hidden}
+  .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r.lvl0 .name{font-weight:700}
+  .kids{flex:none;margin-left:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .who{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+  .who.none{color:var(--muted)}
+  .h{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .st{justify-self:start;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;line-height:1;padding:4px 8px 4px 6px;border-radius:999px;white-space:nowrap;background:var(--b);color:var(--c)}
+  .st:before{content:"";width:9px;height:9px;border-radius:50%;box-sizing:border-box;border:1.5px solid currentColor;flex:none;
+             background:conic-gradient(currentColor var(--p), transparent 0)}
+  .new{--b:var(--s-new-bg);--c:var(--s-new);--p:0%}
+  .plan{--b:var(--s-plan-bg);--c:var(--s-plan);--p:25%}
+  .run{--b:var(--s-run-bg);--c:var(--s-run);--p:50%}
+  .wait{--b:var(--s-wait-bg);--c:var(--s-wait);--p:50%}
+  .wait:before{background:none;border-style:dashed}
+  .done{--b:var(--s-done-bg);--c:var(--s-done);--p:100%}
+  .fade{position:absolute;left:0;right:0;bottom:0;height:40px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+  .note{margin-top:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:13px;line-height:1.45}
+  .note button{font:inherit;font-weight:700;border:0;border-radius:6px;padding:6px 12px;background:var(--brand);color:var(--brand-fg);white-space:nowrap}
+  .r:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+  @media (max-width:560px){
+    .row{grid-template-columns:minmax(0,1fr) auto 44px;column-gap:12px}
+    .row .who,.head span:nth-child(3){display:none}
+    .field{display:none}
+  }
+
+  /* ---- spec tables ---- */
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{text-align:left;padding:7px 10px 7px 0;border-bottom:1px solid var(--border);vertical-align:middle}
+  th{font-weight:500;color:var(--muted-foreground)}
+  td.mut{color:var(--muted-foreground)}
+  .pair{display:flex;gap:6px;flex-wrap:wrap}
+  .pair .op{padding:6px;border-radius:999px;display:inline-flex}
+  @media (max-width:560px){.hide-sm{display:none}}
+</style></head><body>
+<div class="wrap">
+  <div class="lede">Version A3. Le tableau étroit venait de trois cadres emboîtés : la marge de l'écran, la bordure du tableau et la marge des lignes. Ce qui change :
+    <ul>
+      <li>Plus de cadre autour du tableau. Les lignes sont posées sur le fond, et seule une ligne fine sépare l'en-tête.</li>
+      <li>Le tableau commence au même bord que le titre du projet. Le survol et la sélection débordent légèrement à gauche et à droite, au lieu de rogner le contenu.</li>
+      <li>24 px entre les colonnes au lieu de 12. La colonne assigné s'élargit avec l'écran, et la colonne titre garde tout le reste.</li>
+      <li>La sélection n'a plus de barre sur le côté : le fond violet suffit, et la ligne se lit d'un seul tenant.</li>
+    </ul>
+  </div>
+  <div id="light"></div>
+  <div id="dark"></div>
+
+  </div>
+
+<script>
+const rows = [
+  {d:0, n:"Refonte du portail client", k:14, s:"run", l:"En cours", w:"Camille Roux", h:"86,5", open:1},
+  {d:1, n:"Parcours de connexion", k:5, s:"run", l:"En cours", w:"Camille Roux", h:"42,5", open:1, sel:1},
+  {d:2, n:"Maquettes des écrans de connexion et de récupération du mot de passe", s:"plan", l:"Planifié", w:"Inès Barre", h:"6"},
+  {d:2, n:"Migration des comptes existants", s:"run", l:"En cours", w:"Pierre Ledoux", h:"12"},
+  {d:2, n:"Double authentification par e-mail", s:"wait", l:"En attente", w:"Karim Haddad", h:"8"},
+  {d:2, n:"Tests de charge de l'API", s:"done", l:"Fermé", w:"Pierre Ledoux", h:"0"},
+  {d:2, n:"Textes des erreurs de connexion", s:"new", l:"Nouveau", w:null, h:"–", last:1},
+  {d:1, n:"Espace documents", k:9, s:"plan", l:"Spécifié", w:"Inès Barre", h:"31", last:1},
+  {d:0, n:"Contrat de maintenance 2027", k:18, s:"new", l:"Nouveau", w:null, h:"–"},
+  {d:0, n:"Migration vers PostgreSQL 17", k:4, s:"wait", l:"En attente", w:"Karim Haddad", h:"20", open:1},
+  {d:1, n:"Sauvegarde avant bascule", s:"done", l:"Fermé", w:"Pierre Ledoux", h:"0"},
+  {d:1, n:"Plan de retour arrière", s:"run", l:"En test", w:"Karim Haddad", h:"4,5"},
+  {d:1, n:"Bascule de production", s:"plan", l:"Planifié", w:"Karim Haddad", h:"6", last:1},
+  {d:0, n:"Support niveau 2", k:212, s:"run", l:"En cours", w:"Lucie Martin", h:"140"},
+];
+// trait vertical pour chaque ancêtre encore ouvert + coude au dernier niveau
+function guides(i){
+  const r = rows[i]; if(!r.d) return '<span class="g" style="--d:0"></span>';
+  let out = '';
+  for(let lvl=0; lvl<r.d; lvl++){
+    const x = 8 + lvl*20;
+    if(lvl === r.d-1){
+      out += `<i class="elbow" style="left:${x}px"></i>`;
+      if(!r.last) out += `<i class="tee" style="left:${x}px;top:50%"></i>`;
+    } else {
+      // l'ancêtre de ce niveau a-t-il encore des frères plus bas ?
+      let more = false;
+      for(let j=i+1;j<rows.length;j++){ if(rows[j].d<=lvl) break; if(rows[j].d===lvl+1){more=true;break;} }
+      if(more) out += `<i style="left:${x}px"></i>`;
+    }
+  }
+  return `<span class="g" style="--d:${r.d}">${out}</span>`;
+}
+function mock(dark){
+  const body = rows.map((r,i)=>`
+    <div class="row r lvl${r.d} ${r.k?'':'leaf'} ${r.sel?'sel':''}" tabindex="0" title="${r.n}">
+      <span class="t">${guides(i)}<span class="car">${r.k ? (r.open?'▼':'▶') : ''}</span><span class="name">${r.n}</span>${r.k && !r.open ? `<span class="kids">${r.k}</span>`:''}</span>
+      <span class="st ${r.s}">${r.l}</span>
+      <span class="who ${r.w?'':'none'}">${r.w ?? 'Non assignée'}</span>
+      <span class="h">${r.h}</span>
+    </div>`).join('');
+  return `<div class="op ${dark?'dark':''}">
+    <div class="bar"><h3>Portail client</h3><span class="count">1 284 tâches, dont 312 ouvertes</span>
+      <span class="tools"><span class="field">Filtrer par titre</span><button class="btn">Tout replier</button></span></div>
+    <div class="grid">
+      <div class="row head"><span>Tâche</span><span>État</span><span>Assigné</span><span>Restant</span></div>
+      ${body}
+      <div class="fade"></div>
+    </div>
+    ${dark?'':'<div class="note"><span>Cette tâche a changé dans OpenProject. Vos modifications sont conservées.</span><button>Enregistrer à nouveau</button></div>'}
+  </div>`;
+}
+document.getElementById('light').innerHTML = mock(false);
+document.getElementById('dark').innerHTML = mock(true);
+
+const fams = [
+  ["Nouveau","new","Nouveau"],
+  ["Prévu","plan","En spécification, Spécifié, Confirmé, Planifié"],
+  ["En cours","run","En cours, Développé, En test, Testé"],
+  ["En attente","wait","En attente, Test échoué"],
+  ["Fermé","done","Fermé, Rejeté"],
+];
+if(document.getElementById('fam'))document.getElementById('fam').innerHTML = fams.map(([f,c,m])=>`
+  <tr><td>${f}</td>
+  <td><span class="pair"><span class="op"><span class="st ${c}">${f}</span></span></span></td>
+  <td><span class="pair"><span class="op dark"><span class="st ${c}">${f}</span></span></span></td>
+  <td class="mut hide-sm">${m}</td></tr>`).join('');
+</script>
+</body></html>
