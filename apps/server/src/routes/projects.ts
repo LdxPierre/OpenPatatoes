@@ -1,14 +1,10 @@
 import type { FastifyPluginAsync } from "fastify";
-import { z } from "zod";
 import type { AppDependencies } from "../app.js";
 import { currentUserId, requireSession } from "../auth/plugin.js";
 import { opApiForUser } from "../op/connections.js";
 import { buildTaskTree } from "../tasks/hierarchy.js";
 import { sendOpRouteError } from "./op-errors.js";
-
-const projectParamsSchema = z.object({
-  id: z.string().regex(/^[1-9]\d*$/).transform(Number),
-});
+import { idParamsSchema } from "./params.js";
 
 const projectErrorMessages = {
   forbidden: "OpenProject refuse l'accès à ce projet avec votre jeton : demandez à en devenir membre dans OpenProject.",
@@ -31,7 +27,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
 
     /** Ouverture d'un projet : sert d'en-tête à sa vue de tâches. */
     app.get("/projects/:id", async (request, reply) => {
-      const params = projectParamsSchema.safeParse(request.params);
+      const params = idParamsSchema.safeParse(request.params);
       if (!params.success) return reply.code(400).send({ error: "invalid_request" });
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen((api) => api.getProject(params.data.id));
@@ -43,7 +39,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
 
     /** Arbre des tâches du projet, construit depuis une seule liste OP (toutes pages suivies). */
     app.get("/projects/:id/tasks", async (request, reply) => {
-      const params = projectParamsSchema.safeParse(request.params);
+      const params = idParamsSchema.safeParse(request.params);
       if (!params.success) return reply.code(400).send({ error: "invalid_request" });
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen((api) =>

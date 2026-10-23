@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { hashPassword } from "../src/auth/password.js";
 import { SESSION_COOKIE } from "../src/auth/plugin.js";
 import { users } from "../src/db/schema.js";
-import { buildTestApp } from "./support/app.js";
+import { buildTestApp, connectAs } from "./support/app.js";
 import { createTestDatabase, resetDatabase } from "./support/database.js";
 import { startFakeOp, type FakeOp, type FakeUser } from "./support/fake-op.js";
 
@@ -42,19 +42,6 @@ describe("projets", () => {
     return cookie.value;
   }
 
-  /** Connecte le compte et enregistre son jeton OP. */
-  async function connectAs(account: { username: string; password: string }, token: string): Promise<string> {
-    const session = await loginAs(account);
-    const saved = await app.inject({
-      method: "PUT",
-      url: "/api/profile/op-connection",
-      cookies: { [SESSION_COOKIE]: session },
-      payload: { token },
-    });
-    if (saved.statusCode !== 200) throw new Error(`jeton refusé : ${saved.body}`);
-    return session;
-  }
-
   function get(session: string, url: string) {
     return app.inject({ method: "GET", url, cookies: { [SESSION_COOKIE]: session } });
   }
@@ -64,8 +51,8 @@ describe("projets", () => {
       op.addProject({ id: 1, identifier: "alpha", name: "Alpha", memberIds: [opAlice.id] });
       op.addProject({ id: 2, identifier: "beta", name: "Beta", memberIds: [opBob.id] });
       op.addProject({ id: 3, identifier: "gamma", name: "Gamma", memberIds: [opAlice.id, opBob.id] });
-      const aliceSession = await connectAs(alice, "tok-alice");
-      const bobSession = await connectAs(bob, "tok-bob");
+      const aliceSession = await connectAs(app, alice, "tok-alice");
+      const bobSession = await connectAs(app, bob, "tok-bob");
 
       const aliceView = await get(aliceSession, "/api/projects");
       const bobView = await get(bobSession, "/api/projects");
@@ -90,7 +77,7 @@ describe("projets", () => {
       for (let id = 1; id <= count; id++) {
         op.addProject({ id, identifier: `projet-${id}`, name: `Projet ${id}`, memberIds: [opAlice.id] });
       }
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
 
       const response = await get(session, "/api/projects");
 
@@ -101,7 +88,7 @@ describe("projets", () => {
 
     it("renvoie une liste vide si aucun projet n'est accessible", async () => {
       op.addProject({ id: 2, identifier: "beta", name: "Beta", memberIds: [opBob.id] });
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
 
       const response = await get(session, "/api/projects");
 
@@ -125,7 +112,7 @@ describe("projets", () => {
     });
 
     it("distingue OP indisponible d'un refus d'accès", async () => {
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
       op.interceptNext({ path: "/api/v3/projects", status: 503 });
 
       const response = await get(session, "/api/projects");
@@ -135,7 +122,7 @@ describe("projets", () => {
     });
 
     it("rejette une réponse OP non conforme au schéma attendu", async () => {
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
       op.interceptNext({
         path: "/api/v3/projects",
         status: 200,
@@ -152,7 +139,7 @@ describe("projets", () => {
   describe("ouverture", () => {
     it("renvoie le projet demandé", async () => {
       op.addProject({ id: 1, identifier: "alpha", name: "Alpha", memberIds: [opAlice.id] });
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
 
       const response = await get(session, "/api/projects/1");
 
@@ -162,7 +149,7 @@ describe("projets", () => {
 
     it("affiche un refus d'accès d'OP comme un message clair, distinct d'une erreur serveur", async () => {
       op.addProject({ id: 1, identifier: "alpha", name: "Alpha", memberIds: [opAlice.id] });
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
       op.interceptNext({ path: "/api/v3/projects/1", status: 403 });
 
       const response = await get(session, "/api/projects/1");
@@ -176,7 +163,7 @@ describe("projets", () => {
 
     it("traite un projet masqué par OP comme introuvable ou inaccessible", async () => {
       op.addProject({ id: 2, identifier: "beta", name: "Beta", memberIds: [opBob.id] });
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
 
       const response = await get(session, "/api/projects/2");
 
@@ -189,7 +176,7 @@ describe("projets", () => {
 
     it("distingue OP indisponible d'un refus d'accès", async () => {
       op.addProject({ id: 1, identifier: "alpha", name: "Alpha", memberIds: [opAlice.id] });
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
       op.interceptNext({ path: "/api/v3/projects/1", status: 503 });
 
       const response = await get(session, "/api/projects/1");
@@ -199,7 +186,7 @@ describe("projets", () => {
     });
 
     it("refuse un identifiant de projet invalide sans interroger OP", async () => {
-      const session = await connectAs(alice, "tok-alice");
+      const session = await connectAs(app, alice, "tok-alice");
 
       for (const id of ["abc", "0", "-1", "1.5"]) {
         const response = await get(session, `/api/projects/${id}`);

@@ -12,10 +12,12 @@ import {
   opCollectionPageSchema,
   opProjectSchema,
   opUserSchema,
+  opWorkPackageDetailSchema,
   opWorkPackageSchema,
   type OpProject,
   type OpUser,
   type OpWorkPackage,
+  type OpWorkPackageDetail,
 } from "./schemas.js";
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -32,6 +34,8 @@ export interface OpApi {
   getProject(id: number): ResultAsync<OpProject, OpError>;
   /** Toutes les tâches du projet, fermées comprises, toutes pages confondues, triées par identifiant. */
   listProjectWorkPackages(projectId: number): ResultAsync<OpWorkPackage[], OpError>;
+  /** Une tâche, durées converties en heures décimales. */
+  getWorkPackage(id: number): ResultAsync<OpWorkPackageDetail, OpError>;
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -120,6 +124,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             // Sans filtre explicite, OP ne renvoie que les tâches ouvertes.
             query: { filters: "[]", sortBy: JSON.stringify([["id", "asc"]]) },
           }),
+        getWorkPackage: (id) => get(`/work_packages/${id}`, opWorkPackageDetailSchema),
       };
     },
   };
