@@ -27,6 +27,16 @@ export class OpNotFoundError extends Error {
   }
 }
 
+/** OP refuse une écriture (422) : valeur hors des valeurs permises, contrainte non respectée... */
+export class OpRejectedError extends Error {
+  readonly _tag = "OpRejected";
+
+  /** `reasons` : messages d'OP, un par contrainte violée. */
+  constructor(readonly reasons: string[]) {
+    super(`OpenProject a refusé la modification : ${reasons.join(" ")}`);
+  }
+}
+
 /** OP est injoignable, trop lent ou répond par une erreur serveur. */
 export class OpUnavailableError extends Error {
   readonly _tag = "OpUnavailable";
@@ -49,5 +59,6 @@ export type OpError =
   | OpUnauthenticatedError
   | OpForbiddenError
   | OpNotFoundError
+  | OpRejectedError
   | OpUnavailableError
   | OpInvalidResponseError;
