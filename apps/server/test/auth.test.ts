@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildApp } from "../src/app.js";
 import { ensureAdminAccount } from "../src/auth/admin.js";
 import { SESSION_COOKIE } from "../src/auth/plugin.js";
 import { sessions, users } from "../src/db/schema.js";
+import { buildTestApp } from "./support/app.js";
 import { createTestDatabase, resetDatabase } from "./support/database.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -11,7 +11,7 @@ const admin = { username: "admin", password: "mot-de-passe-solide" };
 
 describe("authentification", () => {
   const db = createTestDatabase();
-  const app = buildApp({ db, cookie: { secure: true } });
+  const app = buildTestApp(db, { cookie: { secure: true } });
 
   beforeEach(async () => {
     await resetDatabase(db);

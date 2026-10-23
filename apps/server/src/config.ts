@@ -10,6 +10,11 @@ const configSchema = z.object({
   ADMIN_PASSWORD: z.string().min(12),
   /** Cookie de session réservé à HTTPS ; à désactiver uniquement en développement sur HTTP. */
   COOKIE_SECURE: z.stringbool().default(true),
+  /** Clé AES-256-GCM des jetons OP : 32 octets encodés en base64 (`openssl rand -base64 32`). */
+  OP_TOKEN_ENCRYPTION_KEY: z
+    .base64()
+    .transform((value) => Buffer.from(value, "base64"))
+    .refine((key) => key.length === 32, "La clé doit faire 32 octets une fois décodée"),
 });
 
 export type Config = z.infer<typeof configSchema>;
