@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:grid;gap:28px;font-family:var(--font-sans);color:var(--foreground)}
+  .lede{margin:0;max-width:66ch;font-size:14px;line-height:1.55;color:var(--muted-foreground)}
+  .lede ul{margin:8px 0 0;padding-left:18px}
+  .lede li{margin:2px 0}
+  .op{
+    --bg:#FAF9FB; --surface:#FFFFFF; --text:#2A2530; --muted:#6B6375; --line:#E7E2EC;
+    --brand:#4A2B5E; --brand-fg:#FFFFFF; --sel:#EFE7F5; --hover:#F4F0F7; --lift:0 6px 18px rgba(74,43,94,.18);
+    --s-new-bg:#EEEBF1; --s-new:#5A5363; --s-plan-bg:#E3EBF6; --s-plan:#2D4F7C;
+    --s-run-bg:#EADFF3; --s-run:#4A2B5E; --s-wait-bg:#F7EACB; --s-wait:#7A5200;
+    --s-done-bg:#DCEBDF; --s-done:#2F6A3C;
+  }
+  .op.dark{
+    --bg:#1B1720; --surface:#241F2A; --text:#ECE7F1; --muted:#A79EB3; --line:#352E3D;
+    --brand:#C7A8E0; --brand-fg:#1B1720; --sel:#33263F; --hover:#28222E; --lift:0 6px 18px rgba(0,0,0,.45);
+    --s-new-bg:#2C2732; --s-new:#B8AFC3; --s-plan-bg:#1E2A3B; --s-plan:#9DBBE3;
+    --s-run-bg:#3A2A4A; --s-run:#D6BFEB; --s-wait-bg:#372C15; --s-wait:#EBC56E;
+    --s-done-bg:#1D3224; --s-done:#8FCB9B;
+  }
+  .op{background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible Next',sans-serif;border-radius:var(--radius);padding:20px;font-size:14px}
+  .app{display:flex;align-items:center;gap:12px;margin:-4px 0 18px;font-size:13px}
+  .mark{font-weight:700;color:var(--brand);font-size:15px}
+  .app .sp{margin-left:auto}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:2px;gap:2px;background:var(--surface)}
+  .seg span{padding:3px 9px;border-radius:5px;color:var(--muted);font-size:12.5px}
+  .seg span.on{background:var(--sel);color:var(--text);font-weight:500}
+  .me{width:24px;height:24px;border-radius:50%;background:var(--brand);color:var(--brand-fg);display:grid;place-items:center;font-size:11px;font-weight:700}
+  .bar{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .bar h3{margin:0;font-size:20px;font-weight:700;color:var(--brand);letter-spacing:-.01em}
+  .bar .count{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+  .bar .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .field{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 10px;width:140px}
+
+  .board{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr)) 40px;gap:12px;overflow-x:auto;align-items:start}
+  .col{min-width:0;border-radius:10px;padding:4px;position:relative}
+  .col.target{background:var(--sel)}
+  .col.blocked{opacity:.42}
+  .ch{display:flex;align-items:center;gap:8px;padding:4px 6px 10px;font-weight:700;font-size:13.5px}
+  .ch .n{margin-left:auto;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .dot{width:10px;height:10px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--c);flex:none;background:conic-gradient(var(--c) var(--p), transparent 0)}
+  .new{--b:var(--s-new-bg);--c:var(--s-new);--p:0%}
+  .plan{--b:var(--s-plan-bg);--c:var(--s-plan);--p:25%}
+  .run{--b:var(--s-run-bg);--c:var(--s-run);--p:50%}
+  .wait{--b:var(--s-wait-bg);--c:var(--s-wait);--p:50%}
+  .wait .dot{background:none;border-style:dashed}
+  .done{--b:var(--s-done-bg);--c:var(--s-done);--p:100%}
+  .stack{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;position:relative}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
+  .card:hover{border-color:var(--muted)}
+  .card .top{display:flex;min-width:0;gap:8px;font-size:12px;color:var(--muted);white-space:nowrap}
+  .card .par{overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .card .ti{font-size:14px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .ft{display:flex;min-width:0;align-items:center;gap:8px;font-size:12px;color:var(--muted);white-space:nowrap;min-height:20px}
+  .card .xs{color:var(--c);font-weight:500;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .card .kids{margin-left:auto;flex:none;font-variant-numeric:tabular-nums}
+  .card .h{margin-left:auto;font-variant-numeric:tabular-nums}
+  .av{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;background:var(--b);color:var(--c);flex:none}
+  .more{font-size:12px;color:var(--muted);padding:6px 4px 2px;font-variant-numeric:tabular-nums}
+  .fadeb{height:22px;margin-top:-30px;position:relative;background:linear-gradient(transparent,var(--bg))}
+  .col.target .fadeb{background:linear-gradient(transparent,var(--sel))}
+  .ghost{border:1.5px dashed var(--muted);border-radius:8px;background:transparent;height:64px}
+  .card.moving{box-shadow:var(--lift);border-color:var(--brand)}
+  .menu{background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--lift);padding:6px;font-size:13px;display:grid;gap:2px}
+  .menu .q{color:var(--muted);font-size:12px;padding:4px 6px 4px}
+  .menu .o{padding:6px 8px;border-radius:5px}
+  .menu .o.f{background:var(--sel);outline:2px solid var(--brand);outline-offset:-2px}
+  .blocked-why{font-size:12px;color:var(--muted);padding:0 6px 8px;font-weight:400}
+
+  .shut{writing-mode:vertical-rl;display:flex;align-items:center;gap:8px;padding:10px 0;border-radius:10px;background:var(--b);color:var(--c);font-weight:700;font-size:13px;justify-self:stretch;align-self:start}
+  .shut .dot{transform:rotate(90deg)}
+  .shut .n{font-weight:400;font-variant-numeric:tabular-nums}
+</style></head><body>
+<div class="wrap">
+  <div class="lede">Vue kanban dans la direction A3. Les colonnes sont nos cinq familles d'état. Pour les gros projets :
+    <ul>
+      <li>Chaque colonne fait défiler ses propres cartes et n'en affiche qu'une partie à la fois. Le total reste visible dans l'en-tête.</li>
+      <li>La colonne Fermé est repliée par défaut. Elle contient le plus de tâches, et on la consulte rarement.</li>
+      <li>La carte affiche la tâche parente au-dessus du titre, pour garder la hiérarchie de l'arbre. Si une tâche n'a ni assigné ni heures, le pied de la carte reste vide, sans tiret.</li>
+      <li>L'état exact d'OP est écrit seulement s'il diffère du nom de la colonne, par exemple « En test » dans En cours.</li>
+    </ul>
+  </div>
+  <div id="light"></div>
+  <div id="dark"></div>
+</div>
+<script>
+const cols = [
+  {f:"new", name:"Nouveau", n:96, cards:[
+    {p:"Parcours de connexion", t:"Textes des erreurs de connexion", a:null, h:"–"},
+    {p:null, t:"Contrat de maintenance 2027", k:18, a:null, h:"–"},
+    {p:"Espace documents", t:"Audit d'accessibilité des formulaires de dépôt", a:"IB", h:"3"},
+  ]},
+  {f:"plan", name:"Prévu", n:118, cards:[
+    {p:"Parcours de connexion", t:"Maquettes des écrans de connexion et de récupération du mot de passe", x:"Planifié", a:"IB", h:"6"},
+    {p:"Refonte du portail client", t:"Espace documents", x:"Spécifié", k:9, a:"IB", h:"31"},
+    {p:"Migration vers PostgreSQL 17", t:"Bascule de production", x:"Planifié", a:"KH", h:"6", drag:1},
+  ]},
+  {f:"run", name:"En cours", n:74, cards:[
+    {p:"Parcours de connexion", t:"Migration des comptes existants", a:"PL", h:"12"},
+    {p:"Migration vers PostgreSQL 17", t:"Plan de retour arrière", x:"En test", a:"KH", h:"4,5"},
+    {p:"Refonte du portail client", t:"Parcours de connexion", k:5, a:"CR", h:"42,5"},
+  ]},
+  {f:"wait", name:"En attente", n:24, cards:[
+    {p:"Parcours de connexion", t:"Double authentification par e-mail", a:"KH", h:"8"},
+    {p:null, t:"Migration vers PostgreSQL 17", k:4, a:"KH", h:"20"},
+  ]},
+];
+function card(c, f, cls=''){
+  return `<div class="card ${f} ${cls}" tabindex="0">
+    ${(c.p || c.k) ? `<div class="top"><span class="par">${c.p ?? ''}</span>${c.k ? `<span class="kids">${c.k} sous-tâches</span>` : ''}</div>` : ''}
+    <div class="ti">${c.t}</div>
+    <div class="ft">
+      ${c.x ? `<span class="xs">${c.x}</span>` : ''}
+      ${c.h === '–' ? '' : `<span class="h">${c.h} h</span>`}
+      ${c.a ? `<span class="av">${c.a}</span>` : ''}
+    </div></div>`;
+}
+function mock(dark){
+  const dragging = !dark;
+  const html = cols.map(col => {
+    const target = dragging && col.f === 'run';
+    const blocked = dragging && col.f === 'new';
+    let cards = col.cards.map(c => (dragging && c.drag) ? '<div class="ghost"></div>' : card(c, col.f)).join('');
+    if(target){
+      const d = cols[1].cards[2];
+      cards = card(d, 'plan', 'moving') + `<div class="menu" role="listbox">
+        <div class="q">Choisir l'état</div>
+        <div class="o f">En cours</div><div class="o">Développé</div><div class="o">En test</div></div>` + cards;
+    }
+    return `<section class="col ${col.f} ${target?'target':''} ${blocked?'blocked':''}">
+      <div class="ch"><span class="dot"></span>${col.name}<span class="n">${col.n}</span></div>
+      ${blocked ? '<div class="blocked-why">OP n\'autorise pas ce changement pour cette tâche</div>' : ''}
+      <div class="stack">${cards}</div>
+      <div class="more">${col.n - col.cards.length} autres tâches</div>
+    </section>`;
+  }).join('');
+  return `<div class="op ${dark?'dark':''}">
+    <div class="app"><span class="mark">OpenPatatoes</span>
+      <span class="sp"></span>
+      <span class="seg" aria-label="Thème"><span class="${dark?'':'on'}">Système</span><span>Clair</span><span class="${dark?'on':''}">Sombre</span></span>
+      <span class="me">PL</span></div>
+    <div class="bar"><h3>Portail client</h3><span class="count">312 tâches ouvertes</span>
+      <span class="tools"><span class="field">Filtrer par titre</span>
+      <span class="seg"><span>Arbre</span><span class="on">Kanban</span></span></span></div>
+    <div class="board">${html}
+      <div class="shut done" title="Afficher la colonne Fermé"><span class="dot"></span>Fermé <span class="n">972</span></div>
+    </div>
+  </div>`;
+}
+document.getElementById('light').innerHTML = mock(false);
+document.getElementById('dark').innerHTML = mock(true);
+</script>
+</body></html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&family=Schibsted+Grotesk:wght@400;500;700&family=Literata:opsz,wght@7..72,500;7..72,600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:grid;gap:28px;font-family:var(--font-sans)}
+  .intro{max-width:64ch;color:var(--muted-foreground);font-size:14px;line-height:1.55;margin:0}
+  .dir{display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:start}
+  @media (max-width:620px){.dir{grid-template-columns:1fr}}
+  .meta h2{margin:0 0 6px;font-size:18px;color:var(--foreground)}
+  .meta p{margin:0 0 10px;font-size:13px;line-height:1.5;color:var(--muted-foreground)}
+  .sw{display:grid;gap:4px;font-size:12px;color:var(--muted-foreground)}
+  .sw span{display:flex;align-items:center;gap:8px}
+  .sw i{width:18px;height:18px;border-radius:4px;border:1px solid rgba(127,127,127,.3);flex:none}
+  .mock{border-radius:var(--radius);padding:16px;overflow:hidden}
+  .mock h3{margin:0 0 10px}
+  .row{display:grid;grid-template-columns:1fr auto 96px 52px;align-items:center;gap:10px;font-size:13.5px}
+  .row .t{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .h{text-align:right;font-variant-numeric:tabular-nums}
+  .row .a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car{width:12px;flex:none;text-align:center;opacity:.7}
+  .st{font-size:12px;padding:2px 8px;white-space:nowrap}
+  .note{margin-top:12px;padding:10px 12px;font-size:13px;line-height:1.45;display:flex;gap:12px;align-items:center;justify-content:space-between}
+  .note button{font:inherit;font-weight:600;border:0;padding:6px 12px;cursor:pointer;white-space:nowrap}
+  @media (max-width:520px){.row{grid-template-columns:1fr auto 44px}.row .a{display:none}}
+
+  /* A — Vitelotte */
+  .A{background:#FAF9FB;color:#2A2530;font-family:'Atkinson Hyperlegible Next',sans-serif}
+  .A h3{font-size:20px;font-weight:700;color:#4A2B5E;letter-spacing:-.01em}
+  .A .row{padding:7px 8px;border-radius:6px}
+  .A .row.sel{background:#E9E1F0}
+  .A .tree{position:relative}
+  .A .l1 .t{padding-left:18px;position:relative}
+  .A .l1 .t:before{content:"";position:absolute;left:5px;top:-14px;bottom:50%;width:9px;border-left:2px solid #C9B6D8;border-bottom:2px solid #C9B6D8;border-bottom-left-radius:8px}
+  .A .st{border-radius:999px;background:#EFEAF3;color:#4A2B5E}
+  .A .st.go{background:#4A2B5E;color:#fff}
+  .A .st.ok{background:#DCEBDF;color:#2F6A3C}
+  .A .h{color:#6B6375}
+  .A .note{background:#F3E9F7;border-radius:8px;color:#3A2148}
+  .A .note button{background:#4A2B5E;color:#fff;border-radius:6px}
+
+  /* B — Établi */
+  .B{background:#FFFFFF;color:#1F2328;font-family:'Schibsted Grotesk',sans-serif}
+  .B h3{font-size:16px;font-weight:700}
+  .B .row{padding:4px 6px;border-bottom:1px solid #E4E6E9;font-size:13px}
+  .B .row.sel{background:#FBF1A9;box-shadow:inset 3px 0 #1F2328}
+  .B .l1 .t{padding-left:20px}
+  .B .st{padding:0;font-weight:500;display:flex;align-items:center;gap:6px}
+  .B .st:before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c,#9AA1AA)}
+  .B .h{font-weight:500}
+  .B .note{border:1.5px solid #1F2328;background:#FBF1A9;border-radius:2px}
+  .B .note button{background:#1F2328;color:#fff;border-radius:2px}
+
+  /* C — Carnet */
+  .C{background:#F3F6FA;color:#2B2F36;font-family:'Public Sans',sans-serif;
+     background-image:repeating-linear-gradient(#F3F6FA 0 33px,#C9D6E8 33px 34px);background-position:0 46px}
+  .C h3{font-family:'Literata',serif;font-size:21px;font-weight:600;color:#1B3A8C}
+  .C .row{height:34px;padding:0 6px}
+  .C .row .t{font-family:'Literata',serif;font-size:14.5px}
+  .C .row.sel .t{color:#1B3A8C;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+  .C .l1 .t{padding-left:22px}
+  .C .st{border:1px solid #9FB3D1;border-radius:4px;color:#1B3A8C;background:#fff}
+  .C .st.ok{border-color:#9CC3A8;color:#2E6B43}
+  .C .note{background:#fff;border-left:3px solid #1B3A8C;border-radius:0 6px 6px 0}
+  .C .note button{background:#1B3A8C;color:#fff;border-radius:4px}
+</style></head><body>
+<div class="wrap">
+<p class="intro">Même écran, trois partis pris. Le contenu est celui de l'arbre (#6) et du message de conflit (#36). Regardez surtout la ligne sélectionnée, les états et la lisibilité des heures.</p>
+
+<!-- A -->
+<section class="dir">
+  <div class="meta">
+    <h2>A. Vitelotte</h2>
+    <p>Le nom assumé : le violet de la pomme de terre vitelotte. Les traits de l'arbre forment des racines. Calme au travail, avec une vraie identité.</p>
+    <div class="sw">
+      <span><i style="background:#4A2B5E"></i>Peau #4A2B5E</span>
+      <span><i style="background:#E9E1F0"></i>Chair #E9E1F0</span>
+      <span><i style="background:#3F7A4B"></i>Fane #3F7A4B</span>
+      <span><i style="background:#2A2530"></i>Terre #2A2530</span>
+      <span><i style="background:#FAF9FB"></i>Fond #FAF9FB</span>
+    </div>
+  </div>
+  <div class="mock A">
+    <h3>Refonte du portail client</h3>
+    <div class="tree">
+      <div class="row sel"><span class="t"><span class="car">▾</span>Parcours de connexion</span><span class="st go">En cours</span><span class="a">Camille Roux</span><span class="h">42,5 h</span></div>
+      <div class="row l1"><span class="t">Maquettes des écrans</span><span class="st">À faire</span><span class="a">Inès Barre</span><span class="h">6 h</span></div>
+      <div class="row l1"><span class="t">Migration des comptes</span><span class="st go">En cours</span><span class="a">Pierre Ledoux</span><span class="h">12 h</span></div>
+      <div class="row l1"><span class="t">Tests de charge de l'API</span><span class="st ok">Terminé</span><span class="a">Non assignée</span><span class="h">4 h</span></div>
+      <div class="row"><span class="t"><span class="car">▸</span>Contrat de maintenance 2027</span><span class="st">Nouveau</span><span class="a">Non assignée</span><span class="h">–</span></div>
+    </div>
+    <div class="note"><span>Cette tâche a changé dans OpenProject. Vos modifications sont conservées.</span><button>Enregistrer à nouveau</button></div>
+  </div>
+</section>
+
+<!-- B -->
+<section class="dir">
+  <div class="meta">
+    <h2>B. Établi</h2>
+    <p>Un outil, pas une marque. Lignes serrées, graphite sur blanc. La seule couleur forte est le jaune surligneur de la sélection. Pensé pour des milliers de lignes.</p>
+    <div class="sw">
+      <span><i style="background:#1F2328"></i>Graphite #1F2328</span>
+      <span><i style="background:#FBF1A9"></i>Surligneur #FBF1A9</span>
+      <span><i style="background:#E4E6E9"></i>Trait #E4E6E9</span>
+      <span><i style="background:#1F5FBF"></i>Action #1F5FBF</span>
+      <span><i style="background:#FFFFFF"></i>Fond #FFFFFF</span>
+    </div>
+  </div>
+  <div class="mock B">
+    <h3>Refonte du portail client</h3>
+    <div class="row sel"><span class="t"><span class="car">▾</span>Parcours de connexion</span><span class="st" style="--c:#1F5FBF">En cours</span><span class="a">Camille Roux</span><span class="h">42,5 h</span></div>
+    <div class="row l1"><span class="t">Maquettes des écrans</span><span class="st">À faire</span><span class="a">Inès Barre</span><span class="h">6 h</span></div>
+    <div class="row l1"><span class="t">Migration des comptes</span><span class="st" style="--c:#1F5FBF">En cours</span><span class="a">Pierre Ledoux</span><span class="h">12 h</span></div>
+    <div class="row l1"><span class="t">Tests de charge de l'API</span><span class="st" style="--c:#2F8A4C">Terminé</span><span class="a">Non assignée</span><span class="h">4 h</span></div>
+    <div class="row"><span class="t"><span class="car">▸</span>Contrat de maintenance 2027</span><span class="st" style="--c:#C9CDD3">Nouveau</span><span class="a">Non assignée</span><span class="h">–</span></div>
+    <div class="note"><span>Cette tâche a changé dans OpenProject. Vos modifications sont conservées.</span><button>Enregistrer à nouveau</button></div>
+  </div>
+</section>
+
+<!-- C -->
+<section class="dir">
+  <div class="meta">
+    <h2>C. Carnet</h2>
+    <p>Le cahier d'écolier : encre bleue, papier réglé, titres en sérif. Agréable pour lire et écrire les descriptions en markdown, moins dense.</p>
+    <div class="sw">
+      <span><i style="background:#1B3A8C"></i>Encre #1B3A8C</span>
+      <span><i style="background:#F3F6FA"></i>Papier #F3F6FA</span>
+      <span><i style="background:#C9D6E8"></i>Réglure #C9D6E8</span>
+      <span><i style="background:#2B2F36"></i>Mine #2B2F36</span>
+      <span><i style="background:#2E6B43"></i>Validé #2E6B43</span>
+    </div>
+  </div>
+  <div class="mock C">
+    <h3>Refonte du portail client</h3>
+    <div class="row sel"><span class="t"><span class="car">▾</span>Parcours de connexion</span><span class="st">En cours</span><span class="a">Camille Roux</span><span class="h">42,5 h</span></div>
+    <div class="row l1"><span class="t">Maquettes des écrans</span><span class="st">À faire</span><span class="a">Inès Barre</span><span class="h">6 h</span></div>
+    <div class="row l1"><span class="t">Migration des comptes</span><span class="st">En cours</span><span class="a">Pierre Ledoux</span><span class="h">12 h</span></div>
+    <div class="row l1"><span class="t">Tests de charge de l'API</span><span class="st ok">Terminé</span><span class="a">Non assignée</span><span class="h">4 h</span></div>
+    <div class="row"><span class="t"><span class="car">▸</span>Contrat de maintenance 2027</span><span class="st">Nouveau</span><span class="a">Non assignée</span><span class="h">–</span></div>
+    <div class="note"><span>Cette tâche a changé dans OpenProject. Vos modifications sont conservées.</span><button>Enregistrer à nouveau</button></div>
+  </div>
+</section>
+</div>
+</body></html>
