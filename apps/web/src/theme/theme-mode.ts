@@ -1,8 +1,10 @@
 import { computed, readonly, ref } from 'vue'
-import { darkModeClass } from './preset'
 
 // Thème choisi par l'utilisateur : suivre le système, ou forcer clair/sombre.
 // Le choix est gardé dans le navigateur ; « Système » est la valeur par défaut.
+
+/** Classe posée sur <html> quand le thème sombre est actif. */
+export const darkModeClass = 'op-dark'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 

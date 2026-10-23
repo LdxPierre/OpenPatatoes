@@ -16,24 +16,34 @@ Tout est dans `apps/web/src/theme/` :
 
 | Fichier | Rôle |
 | --- | --- |
-| `primitives.ts` | Palettes brutes `vitelotte` et `terre`. Aucun composant ne les utilise directement. |
-| `preset.ts` | Preset PrimeVue (base Aura) : rôles clair et sombre, jetons propres à l'app sous `app`. |
+| `tokens.css` | Palettes brutes `vitelotte` et `terre`, puis les rôles clair et sombre, et les jetons propres à l'app (`--p-app-…`). Aucun composant n'utilise les palettes directement. |
+| `main.css` | Point d'entrée CSS : Tailwind, `tokens.css`, `base.css`, et les noms de couleurs attendus par shadcn-vue (`bg-primary`, `border-input`…) reliés à nos rôles. |
 | `status-families.ts` | Familles d'état et classement des statuts OP. |
-| `theme-mode.ts` | Choix du thème : Système, Clair, Sombre. |
+| `theme-mode.ts` | Choix du thème : Système, Clair, Sombre. Pose la classe `op-dark` sur `<html>`. |
 | `base.css` | Police, échelle typographique, espacements, focus, mouvement réduit. |
-| `index.ts` | Point d'entrée : importe la police et `base.css`, exporte la config PrimeVue. |
+| `index.ts` | Point d'entrée : importe la police et `main.css`. |
 
 Branchement dans `main.ts` :
 
 ```ts
-import PrimeVue from 'primevue/config'
-import { applyThemeMode, primeVueTheme } from './theme'
+import { applyThemeMode } from './theme'
 
 applyThemeMode() // avant le montage, pour éviter un flash du mauvais thème
-createApp(App).use(PrimeVue, primeVueTheme).mount('#app')
+createApp(App).mount('#app')
 ```
 
-Les jetons deviennent des variables CSS `--p-…`. Dans un composant, utilisez toujours les rôles (`--p-text-muted-color`, `--p-app-line`), jamais une valeur hexadécimale.
+Les rôles sont des variables CSS `--p-…`. Dans un composant, utilisez toujours les rôles (`--p-text-muted-color`, `--p-app-line`) ou leur nom Tailwind (`text-muted-foreground`, `border-border`), jamais une valeur hexadécimale. Le mode sombre passe par `color-scheme` : la classe `op-dark` le met à `dark`, et chaque `light-dark()` prend sa seconde valeur.
+
+### Composants
+
+Les composants viennent de [shadcn-vue](https://www.shadcn-vue.com), construit sur Reka UI (accessibilité, clavier, ARIA) et Tailwind. Ce n'est pas une dépendance : la commande copie le code dans `apps/web/src/shared/components/ui/`, et ce code est à nous.
+
+```sh
+cd apps/web
+pnpm dlx shadcn-vue@latest add <composant>
+```
+
+Après l'ajout, vérifiez le fichier copié : la commande peut importer `cn` depuis un paquet npm `cn` au lieu de `@/shared/lib/utils`, et ajouter des paquets d'icônes. Adaptez ensuite le style à Vitelotte : taille `sm` (32 px) pour rester dense, et pas de `outline-none` ni d'anneau `ring` au focus, pour garder le contour défini dans `base.css`.
 
 ## Couleurs
 
@@ -76,11 +86,14 @@ Les badges ont un fond teinté, jamais un fond plein : avec des centaines de lig
 
 ## Messages
 
-Le composant `Message` de PrimeVue utilise nos couleurs :
+Le composant `Alert` (`@/shared/components/ui/alert`) a un fond teinté, sans bordure visible. Le texte va dans `AlertDescription`. Variantes :
 
 - `warn` pour les conflits avec OP, avec un fond ambré ;
 - `error` pour les refus et OP indisponible, avec un fond rosé ;
-- `success` reprend la famille Fermé, et `info` la famille Prévu.
+- `success` reprend la famille Fermé, et `info` la famille Prévu ;
+- `neutral` pour une attente sans enjeu.
+
+`Alert` porte `role="alert"`. Passez `role="status"` pour un message qui ne doit pas interrompre le lecteur d'écran.
 
 ## Typographie
 

@@ -1,22 +1,31 @@
 <script setup lang="ts">
+import type { AcceptableValue } from 'reka-ui'
 import type { ThemeMode } from './theme-mode'
-import SelectButton from 'primevue/selectbutton'
+import { ToggleGroup, ToggleGroupItem } from '@/shared/components/ui/toggle-group'
 import { themeModeLabels, useThemeMode } from './theme-mode'
 
 const { mode, setMode } = useThemeMode()
 
 const options = Object.entries(themeModeLabels).map(([value, label]) => ({ value: value as ThemeMode, label }))
+
+// Recliquer sur le choix actif le désélectionne : on garde toujours un thème.
+function select(value: AcceptableValue | AcceptableValue[]) {
+  if (typeof value === 'string')
+    setMode(value as ThemeMode)
+}
 </script>
 
 <template>
-  <SelectButton
+  <ToggleGroup
+    type="single"
+    variant="outline"
+    size="sm"
     :model-value="mode"
-    :options="options"
-    option-label="label"
-    option-value="value"
-    :allow-empty="false"
     aria-label="Thème"
-    size="small"
-    @update:model-value="setMode"
-  />
+    @update:model-value="select"
+  >
+    <ToggleGroupItem v-for="option in options" :key="option.value" :value="option.value">
+      {{ option.label }}
+    </ToggleGroupItem>
+  </ToggleGroup>
 </template>

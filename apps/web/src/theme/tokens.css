@@ -1,0 +1,110 @@
+/* Jetons « Vitelotte ». Chaque rôle donne sa valeur claire et sombre avec
+   light-dark() ; la bascule vient de color-scheme, piloté par la classe
+   .op-dark que pose theme-mode.ts.
+
+   Les palettes brutes (--p-vitelotte-…, --p-terre-…) ne servent qu'à définir
+   les rôles : un composant utilise toujours un rôle. */
+
+:root {
+  color-scheme: light;
+
+  /* Violet de la pomme de terre vitelotte : la marque et la sélection. */
+  --p-vitelotte-50: #F7F3FA;
+  --p-vitelotte-100: #EFE7F5;
+  --p-vitelotte-200: #E1D2EC;
+  --p-vitelotte-300: #C7A8E0;
+  --p-vitelotte-400: #A880C6;
+  --p-vitelotte-500: #7E5A9B;
+  --p-vitelotte-600: #5F3D78;
+  --p-vitelotte-700: #4A2B5E;
+  --p-vitelotte-800: #3A2148;
+  --p-vitelotte-900: #2B1A38;
+  --p-vitelotte-950: #1E1227;
+
+  /* Gris teinté de violet pour les fonds, traits et textes secondaires.
+     Même échelle en clair et en sombre : 50 est le fond clair, 950 le fond sombre. */
+  --p-terre-0: #FFFFFF;
+  --p-terre-50: #FAF9FB;
+  --p-terre-100: #F4F0F7;
+  --p-terre-200: #E7E2EC;
+  --p-terre-300: #CFC8D6;
+  --p-terre-400: #A79EB3;
+  --p-terre-500: #8E8599;
+  --p-terre-600: #6B6375;
+  --p-terre-700: #332C3B;
+  --p-terre-800: #28222E;
+  --p-terre-900: #221D28;
+  --p-terre-950: #1B1720;
+
+  --p-border-radius-none: 0;
+  --p-border-radius-xs: 2px;
+  --p-border-radius-sm: 4px;
+  --p-border-radius-md: 6px;
+  --p-border-radius-lg: 8px;
+  --p-border-radius-xl: 10px;
+
+  --p-transition-duration: 0.15s;
+
+  --p-primary-color: light-dark(var(--p-vitelotte-700), var(--p-vitelotte-300));
+  --p-primary-contrast-color: light-dark(#FFFFFF, var(--p-terre-950));
+  --p-primary-hover-color: light-dark(var(--p-vitelotte-800), var(--p-vitelotte-200));
+  --p-primary-active-color: light-dark(var(--p-vitelotte-900), var(--p-vitelotte-100));
+
+  --p-focus-ring-width: 2px;
+  --p-focus-ring-style: solid;
+  --p-focus-ring-color: var(--p-primary-color);
+  --p-focus-ring-offset: 2px;
+
+  --p-text-color: light-dark(#2A2530, #ECE7F1);
+  --p-text-hover-color: light-dark(#1B1720, #FFFFFF);
+  --p-text-muted-color: light-dark(var(--p-terre-600), var(--p-terre-400));
+  --p-text-hover-muted-color: light-dark(var(--p-terre-700), var(--p-terre-300));
+
+  --p-content-background: light-dark(var(--p-terre-0), var(--p-terre-900));
+  --p-content-hover-background: light-dark(var(--p-terre-100), var(--p-terre-800));
+  --p-content-border-color: light-dark(var(--p-terre-200), var(--p-terre-700));
+
+  --p-highlight-background: light-dark(var(--p-vitelotte-100), #33263F);
+  --p-highlight-focus-background: light-dark(var(--p-vitelotte-200), #3D2D4B);
+  --p-highlight-color: var(--p-text-color);
+  --p-highlight-focus-color: var(--p-text-color);
+
+  --p-form-field-background: light-dark(var(--p-terre-0), var(--p-terre-900));
+  /* 3:1 minimum contre le fond : un champ doit se voir sans le survoler. */
+  --p-form-field-border-color: light-dark(var(--p-terre-500), #766C80);
+  --p-form-field-hover-border-color: light-dark(var(--p-terre-600), var(--p-terre-400));
+  --p-form-field-color: var(--p-text-color);
+  --p-form-field-placeholder-color: var(--p-text-muted-color);
+
+  /* Jetons propres à l'app. */
+  --p-app-background: light-dark(var(--p-terre-50), var(--p-terre-950));
+  --p-app-line: light-dark(var(--p-terre-200), var(--p-terre-700));
+  --p-app-hover: light-dark(var(--p-terre-100), var(--p-terre-800));
+  --p-app-shadow-lift: 0 6px 18px light-dark(rgba(74, 43, 94, 0.18), rgba(0, 0, 0, 0.45));
+
+  --p-app-tree-row-height: 2rem;
+  --p-app-tree-indent: 1.25rem;
+  --p-app-tree-guide-width: 2px;
+  /* Décoratif : le retrait porte la hiérarchie, ce trait n'a pas besoin de 3:1. */
+  --p-app-tree-guide: light-dark(#CDBDDA, #4E4258);
+
+  --p-app-status-new-background: light-dark(#EEEBF1, #2C2732);
+  --p-app-status-new-color: light-dark(#5A5363, #B8AFC3);
+  --p-app-status-planned-background: light-dark(#E3EBF6, #1E2A3B);
+  --p-app-status-planned-color: light-dark(#2D4F7C, #9DBBE3);
+  --p-app-status-active-background: light-dark(#EADFF3, #3A2A4A);
+  --p-app-status-active-color: light-dark(#4A2B5E, #D6BFEB);
+  --p-app-status-on-hold-background: light-dark(#F7EACB, #372C15);
+  --p-app-status-on-hold-color: light-dark(#7A5200, #EBC56E);
+  --p-app-status-closed-background: light-dark(#DCEBDF, #1D3224);
+  --p-app-status-closed-color: light-dark(#2F6A3C, #8FCB9B);
+
+  --p-app-warn-background: light-dark(#F7EACB, #372C15);
+  --p-app-warn-color: light-dark(#5C3E00, #F3D79A);
+  --p-app-error-background: light-dark(#F8E3E3, #3A1F22);
+  --p-app-error-color: light-dark(#8A2A2A, #F0A8A8);
+}
+
+:root.op-dark {
+  color-scheme: dark;
+}
