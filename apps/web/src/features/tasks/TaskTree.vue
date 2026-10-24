@@ -82,7 +82,7 @@ function isDescendant(index: number, ancestorIndex: number) {
 
 function setExpanded(index: number, open: boolean) {
   const row = rows.value[index]
-  if (!row || row.task.children.length === 0 || row.expanded === open)
+  if (!row || !row.hasChildren || row.expanded === open)
     return
   if (open) {
     expanded.add(row.task.id)
@@ -105,7 +105,6 @@ async function focusRow(index: number) {
 }
 
 function onKeydown(event: KeyboardEvent, index: number, row: TaskRow) {
-  const hasChildren = row.task.children.length > 0
   switch (event.key) {
     case 'ArrowDown':
       focusRow(index + 1)
@@ -133,7 +132,7 @@ function onKeydown(event: KeyboardEvent, index: number, row: TaskRow) {
       break
     case 'Enter':
     case ' ':
-      if (!hasChildren)
+      if (!row.hasChildren)
         return
       setExpanded(index, !row.expanded)
       break
@@ -159,8 +158,15 @@ function onBlur(row: TaskRow) {
     revealedId.value = null
 }
 
+/** Clic sur le chevron : bascule le nœud, qui devient la ligne active. */
+function toggleFromChevron(index: number, row: TaskRow) {
+  setExpanded(index, !row.expanded)
+  activeId.value = row.task.id
+}
+
+/** Trait d'un niveau : centré sous le chevron de l'ancêtre de ce niveau. */
 function guideStyle(level: number) {
-  return { left: `calc(${level} * var(--p-app-tree-indent) + 8px)` }
+  return { left: `calc(${level} * var(--p-app-tree-indent) + var(--tree-guide-offset))` }
 }
 </script>
 
@@ -190,7 +196,7 @@ function guideStyle(level: number) {
         :aria-level="row.depth + 1"
         :aria-posinset="row.position"
         :aria-setsize="row.siblingCount"
-        :aria-expanded="row.task.children.length > 0 ? row.expanded : undefined"
+        :aria-expanded="row.hasChildren ? row.expanded : undefined"
         :title="row.task.subject"
         :style="{ transform: `translateY(${top}px)` }"
         @keydown="onKeydown($event, index, row)"
@@ -211,14 +217,14 @@ function guideStyle(level: number) {
           <span
             class="toggle"
             aria-hidden="true"
-            @click.stop="setExpanded(index, !row.expanded); activeId = row.task.id"
+            @click.stop="toggleFromChevron(index, row)"
           >
-            <svg v-if="row.task.children.length > 0" :class="{ open: row.expanded }" viewBox="0 0 10 10" width="10" height="10">
+            <svg v-if="row.hasChildren" :class="{ open: row.expanded }" viewBox="0 0 10 10" width="10" height="10">
               <path d="M3.5 2 7 5 3.5 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
           <span class="name">{{ row.task.subject }}</span>
-          <span v-if="row.task.children.length > 0 && !row.expanded" class="children-count op-num">
+          <span v-if="row.hasChildren && !row.expanded" class="children-count op-num">
             {{ row.task.children.length.toLocaleString('fr-FR') }}<span class="sr-only">{{ row.task.children.length === 1 ? ' sous-tâche' : ' sous-tâches' }}</span>
           </span>
         </span>
@@ -235,6 +241,10 @@ function guideStyle(level: number) {
 <style scoped>
 /* Le survol et la sélection débordent de 8 px de chaque côté : le texte reste aligné sur le titre. */
 .task-tree {
+  /* Colonne du chevron ; les traits de racine se centrent dessous. */
+  --tree-toggle-width: 18px;
+  --tree-guide-offset: calc((var(--tree-toggle-width) - var(--p-app-tree-guide-width)) / 2);
+
   align-self: stretch;
   margin: 0 calc(-1 * var(--op-space-2));
 }
@@ -261,7 +271,7 @@ function guideStyle(level: number) {
 }
 
 .head-title {
-  padding-left: 18px;
+  padding-left: var(--tree-toggle-width);
 }
 
 .tree-body {
@@ -321,12 +331,12 @@ function guideStyle(level: number) {
 
 .guides .elbow {
   bottom: 50%;
-  width: 9px;
+  width: calc(var(--tree-toggle-width) / 2);
   box-sizing: border-box;
   background: none;
   border-left: var(--p-app-tree-guide-width) solid var(--p-app-tree-guide);
   border-bottom: var(--p-app-tree-guide-width) solid var(--p-app-tree-guide);
-  border-bottom-left-radius: 7px;
+  border-bottom-left-radius: var(--p-border-radius-md);
 }
 
 .guides .tee {
@@ -337,7 +347,7 @@ function guideStyle(level: number) {
   flex: none;
   display: grid;
   place-items: center;
-  width: 18px;
+  width: var(--tree-toggle-width);
   align-self: stretch;
   color: var(--p-text-muted-color);
 }
@@ -375,7 +385,7 @@ function guideStyle(level: number) {
 
 .full-title {
   position: absolute;
-  top: calc(100% + 2px);
+  top: calc(100% + var(--op-space-1));
   left: var(--op-space-2);
   max-width: min(60ch, calc(100% - 2 * var(--op-space-2)));
   padding: var(--op-space-1) var(--op-space-2);

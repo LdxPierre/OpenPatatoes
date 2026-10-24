@@ -26,13 +26,18 @@ export const opProjectSchema = z
 
 export type OpProject = z.output<typeof opProjectSchema>
 
-/** Lien HAL vers une ressource OP ; l'identifiant est le dernier segment (`/api/v3/statuses/7` → 7). */
-const opResourceLinkSchema = z.object({
-  href: z.string().regex(/\/\d+$/),
-  title: z.string(),
-})
-
 const idFromHref = (href: string) => Number(href.slice(href.lastIndexOf('/') + 1))
+
+/** Lien HAL vers une ressource OP, projeté en `{ id, name }`. */
+const opResourceLinkSchema = z
+  .object({
+    href: z.string().regex(/\/\d+$/),
+    title: z.string(),
+  })
+  .transform(({ href, title }) => ({
+    id: idFromHref(href),
+    name: title,
+  }))
 
 /** Lien HAL facultatif : OP renvoie `href: null` (ou omet le lien) quand il est vide. */
 const opOptionalLinkSchema = z
@@ -43,11 +48,8 @@ const opOptionalLinkSchema = z
     opResourceLinkSchema,
   ])
   .optional()
-  .transform(link => (link?.href
-    ? {
-        id: idFromHref(link.href),
-        name: link.title,
-      }
+  .transform(link => (link && 'id' in link
+    ? link
     : null))
 
 export const opWorkPackageSchema = z
@@ -65,14 +67,23 @@ export const opWorkPackageSchema = z
     id,
     subject,
     parentId: _links.parent?.id ?? null,
-    status: {
-      id: idFromHref(_links.status.href),
-      name: _links.status.title,
-    },
+    status: _links.status,
     assignee: _links.assignee,
   }))
 
 export type OpWorkPackage = z.output<typeof opWorkPackageSchema>
+
+/** Statut OP. Le lien d'une tâche ne dit pas s'il est fermé : seule la liste des statuts le donne. */
+export const opStatusSchema = z
+  .object({
+    _type: z.literal('Status'),
+    id: z.number().int(),
+    name: z.string(),
+    isClosed: z.boolean(),
+  })
+  .transform(({ id, name, isClosed }) => ({ id, name, isClosed }))
+
+export type OpStatus = z.output<typeof opStatusSchema>
 
 /**
  * Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages.

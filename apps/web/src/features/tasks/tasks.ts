@@ -1,8 +1,9 @@
 import type { TaskNode } from '@openpatatoes/shared'
 import type { MaybeRefOrGetter } from 'vue'
-import { taskTreeResponseSchema } from '@openpatatoes/shared'
+import { forEachTask, taskTreeResponseSchema } from '@openpatatoes/shared'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
+import { projectsQueryKey } from '@/features/projects/projects'
 import { apiFetch } from '@/shared/api/api-fetch'
 
 /**
@@ -12,7 +13,7 @@ import { apiFetch } from '@/shared/api/api-fetch'
 export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
   return useQuery({
     queryKey: computed(() => [
-      'projects',
+      ...projectsQueryKey,
       toValue(projectId),
       'tasks',
     ]),
@@ -38,6 +39,7 @@ export interface TaskRow {
   /** Position parmi les frères, à partir de 1. */
   position: number
   siblingCount: number
+  hasChildren: boolean
   expanded: boolean
 }
 
@@ -76,7 +78,8 @@ export function visibleTaskRows(roots: TaskNode[], expanded: ReadonlySet<number>
     const guides = level.depth === 0
       ? []
       : [...level.guides, !isLast]
-    const isExpanded = task.children.length > 0 && expanded.has(task.id)
+    const hasChildren = task.children.length > 0
+    const isExpanded = hasChildren && expanded.has(task.id)
     rows.push({
       task,
       depth: level.depth,
@@ -84,6 +87,7 @@ export function visibleTaskRows(roots: TaskNode[], expanded: ReadonlySet<number>
       parentIndex: level.parentIndex,
       position: position + 1,
       siblingCount: level.siblings.length,
+      hasChildren,
       expanded: isExpanded,
     })
     if (isExpanded) {
@@ -102,10 +106,6 @@ export function visibleTaskRows(roots: TaskNode[], expanded: ReadonlySet<number>
 /** Nombre total de tâches, à tous les niveaux. */
 export function countTasks(roots: TaskNode[]) {
   let count = 0
-  const stack = [...roots]
-  for (let task = stack.pop(); task; task = stack.pop()) {
-    count++
-    stack.push(...task.children)
-  }
+  forEachTask(roots, () => count++)
   return count
 }

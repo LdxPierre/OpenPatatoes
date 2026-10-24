@@ -2,15 +2,12 @@
 import { computed } from 'vue'
 import { statusFamilyOf, statusFamilyVars } from '@/theme/status-families'
 
-/**
- * Statut OP : le nom vient d'OP, la couleur et le pictogramme de sa famille.
- * Sans `isClosed`, un statut inconnu tombe dans « Nouveau ».
- */
+/** Statut OP : le nom vient d'OP, la couleur et le pictogramme de sa famille. */
 const props = defineProps<{
-  status: { name: string, isClosed?: boolean }
+  status: { name: string, isClosed: boolean }
 }>()
 
-const family = computed(() => statusFamilyOf({ name: props.status.name, isClosed: props.status.isClosed ?? false }))
+const family = computed(() => statusFamilyOf(props.status))
 const style = computed(() => {
   const vars = statusFamilyVars(family.value)
   return {
@@ -27,11 +24,15 @@ const style = computed(() => {
 <style scoped>
 /* Fond teinté, jamais plein : des centaines de pastilles pleines deviendraient du bruit. */
 .status {
+  /* Taille du pictogramme : il doit rester lisible à côté d'un texte de 13 px. */
+  --status-icon-size: 9px;
+  --status-icon-border: 1.5px;
+
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--op-space-1);
   max-width: 100%;
-  padding: 4px 8px 4px 6px;
+  padding: var(--op-space-1) var(--op-space-2);
   border-radius: 999px;
   background: var(--status-background);
   color: var(--status-color);
@@ -46,10 +47,10 @@ const style = computed(() => {
 .status::before {
   content: "";
   flex: none;
-  width: 9px;
-  height: 9px;
+  width: var(--status-icon-size);
+  height: var(--status-icon-size);
   box-sizing: border-box;
-  border: 1.5px solid currentColor;
+  border: var(--status-icon-border) solid currentColor;
   border-radius: 50%;
   background: conic-gradient(currentColor var(--status-fill, 0%), transparent 0);
 }

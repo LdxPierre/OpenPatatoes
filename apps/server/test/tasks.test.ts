@@ -1,3 +1,4 @@
+import type { TaskNode } from '@openpatatoes/shared'
 import type { FakeOp, FakeUser } from './support/fake-op.js'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { hashPassword } from '../src/auth/password.js'
@@ -8,14 +9,6 @@ import { createTestDatabase, resetDatabase } from './support/database.js'
 import { FAKE_STATUSES, startFakeOp } from './support/fake-op.js'
 
 const alice = { username: 'alice', password: 'mot-de-passe-alice' }
-
-interface TaskNode {
-  id: number
-  subject: string
-  status: { id: number, name: string }
-  assignee: { id: number, name: string } | null
-  children: TaskNode[]
-}
 
 /** Arbre réduit aux identifiants, pour comparer des structures sans le détail des lignes. */
 type IdTree = [id: number, children: IdTree[]]
@@ -145,13 +138,13 @@ describe('arbre des tâches d\'un projet', () => {
         {
           id: 10,
           subject: 'Assignée',
-          status: { id: FAKE_STATUSES.inProgress.id, name: 'In progress' },
+          status: { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
           assignee: { id: opAlice.id, name: 'Alice OP' },
           children: [
             {
               id: 11,
               subject: 'Sans assigné',
-              status: { id: FAKE_STATUSES.new.id, name: 'New' },
+              status: { id: FAKE_STATUSES.new.id, name: 'New', isClosed: false },
               assignee: null,
               children: [],
             },
@@ -185,6 +178,38 @@ describe('arbre des tâches d\'un projet', () => {
         ],
       ],
     ])
+  })
+
+  it('dit si l\'état est fermé dans OP, y compris pour un statut ajouté par un administrateur', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Livrée',
+      statusId: FAKE_STATUSES.delivered.id,
+    })
+    op.addWorkPackage({
+      id: 11,
+      projectId: 1,
+      subject: 'En cours',
+      statusId: FAKE_STATUSES.inProgress.id,
+    })
+
+    const response = await getTasks()
+
+    const tasks: TaskNode[] = response.json().tasks
+    expect(tasks.map(task => task.status)).toEqual([
+      { id: FAKE_STATUSES.delivered.id, name: 'Delivered', isClosed: true },
+      { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
+    ])
+  })
+
+  it('distingue OP indisponible à la lecture des statuts', async () => {
+    op.interceptNext({ path: '/api/v3/statuses', status: 503 })
+
+    const response = await getTasks()
+
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toMatchObject({ error: 'op_unavailable' })
   })
 
   it('conserve l\'ordre d\'OP pour les racines et les enfants', async () => {

@@ -1,5 +1,6 @@
 import type { TaskNode } from '@openpatatoes/shared'
-import type { OpWorkPackage } from '../op/schemas.js'
+import type { OpStatus, OpWorkPackage } from '../op/schemas.js'
+import { forEachTask } from '@openpatatoes/shared'
 
 /**
  * Construit l'arbre des tâches depuis la liste plate d'OP. Le premier niveau contient
@@ -9,14 +10,20 @@ import type { OpWorkPackage } from '../op/schemas.js'
  * est une racine. Si OP renvoie une boucle de parents, la première tâche de la boucle
  * devient racine, pour qu'aucune tâche ne disparaisse. Le parcours est itératif :
  * une hiérarchie profonde ne fait pas déborder la pile.
+ *
+ * `statuses` dit quels statuts sont fermés : un statut absent de la liste est ouvert.
  */
-export function buildTaskTree(workPackages: OpWorkPackage[]): TaskNode[] {
+export function buildTaskTree(workPackages: OpWorkPackage[], statuses: OpStatus[]): TaskNode[] {
+  const closedStatusIds = new Set(statuses.filter(status => status.isClosed).map(status => status.id))
   const nodes = new Map<number, TaskNode>()
   for (const { id, subject, status, assignee } of workPackages) {
     nodes.set(id, {
       id,
       subject,
-      status,
+      status: {
+        ...status,
+        isClosed: closedStatusIds.has(status.id),
+      },
       assignee,
       children: [],
     })
@@ -39,13 +46,7 @@ export function buildTaskTree(workPackages: OpWorkPackage[]): TaskNode[] {
   }
 
   const reached = new Set<number>()
-  const reachFrom = (start: TaskNode) => {
-    const stack = [start]
-    for (let node = stack.pop(); node; node = stack.pop()) {
-      reached.add(node.id)
-      stack.push(...node.children)
-    }
-  }
+  const reachFrom = (start: TaskNode) => forEachTask([start], node => reached.add(node.id))
   roots.forEach(reachFrom)
 
   // Les tâches non atteintes depuis les racines sont prises dans une boucle de parents.

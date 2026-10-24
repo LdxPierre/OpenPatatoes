@@ -1,5 +1,5 @@
 import type { OpError } from './errors.js'
-import type { OpProject, OpUser, OpWorkPackage } from './schemas.js'
+import type { OpProject, OpStatus, OpUser, OpWorkPackage } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import {
 import {
   opCollectionPageSchema,
   opProjectSchema,
+  opStatusSchema,
   opUserSchema,
   opWorkPackageSchema,
 } from './schemas.js'
@@ -32,6 +33,8 @@ export interface OpApi {
   getProject: (id: number) => ResultAsync<OpProject, OpError>
   /** Toutes les tâches du projet, fermées comprises, toutes pages confondues, triées par identifiant. */
   listProjectWorkPackages: (projectId: number) => ResultAsync<OpWorkPackage[], OpError>
+  /** Tous les statuts de l'instance, avec leur caractère fermé. */
+  listStatuses: () => ResultAsync<OpStatus[], OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -138,6 +141,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
               ]),
             },
           }),
+        listStatuses: () => getAll('/statuses', opStatusSchema),
       }
     },
   }

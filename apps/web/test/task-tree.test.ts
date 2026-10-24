@@ -11,7 +11,7 @@ function task(id: number, subject: string, children: TaskNode[] = [], extra: Par
   return {
     id,
     subject,
-    status: { id: 1, name: 'Nouveau' },
+    status: { id: 1, name: 'Nouveau', isClosed: false },
     assignee: null,
     children,
     ...extra,
@@ -22,13 +22,13 @@ const tree = [
   task(10, 'Refonte du portail client', [
     task(11, 'Parcours de connexion', [
       task(12, 'Migration des comptes existants', [], {
-        status: { id: 7, name: 'En cours' },
+        status: { id: 7, name: 'En cours', isClosed: false },
         assignee: { id: 3, name: 'Camille Roux' },
       }),
     ]),
     task(13, 'Espace documents'),
   ], {
-    status: { id: 7, name: 'En cours' },
+    status: { id: 7, name: 'En cours', isClosed: false },
     assignee: { id: 3, name: 'Camille Roux' },
   }),
   task(20, 'Contrat de maintenance 2027'),
@@ -84,6 +84,20 @@ describe('arbre des tâches d\'un projet', () => {
     expect(portal.find('.assignee').text()).toBe('Camille Roux')
     // Sans assigné, la colonne reste vide.
     expect(row(wrapper, 'Contrat de maintenance 2027').find('.assignee').text()).toBe('')
+  })
+
+  it('classe un statut ajouté dans OP selon qu\'il y est fermé ou non', async () => {
+    const wrapper = await openProject([
+      task(1, 'Livrée', [], {
+        status: { id: 15, name: 'Livré', isClosed: true },
+      }),
+      task(2, 'À relire', [], {
+        status: { id: 16, name: 'À relire', isClosed: false },
+      }),
+    ])
+
+    expect(row(wrapper, 'Livrée').find('.status').attributes('data-family')).toBe('closed')
+    expect(row(wrapper, 'À relire').find('.status').attributes('data-family')).toBe('new')
   })
 
   it('déplie et replie un nœud au clic', async () => {

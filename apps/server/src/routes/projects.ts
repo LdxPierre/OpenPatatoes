@@ -1,6 +1,7 @@
 import type { ProjectResponse, ProjectsResponse, TaskTreeResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
+import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
@@ -44,12 +45,16 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       if (!params.success)
         return reply.code(400).send({ error: 'invalid_request' })
 
+      // Les statuts disent lesquels sont fermés : le lien d'état d'une tâche ne le dit pas.
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
-        api.listProjectWorkPackages(params.data.id),
+        ResultAsync.combine([
+          api.listProjectWorkPackages(params.data.id),
+          api.listStatuses(),
+        ]),
       )
       return result.match(
-        workPackages => ({
-          tasks: buildTaskTree(workPackages),
+        ([workPackages, statuses]) => ({
+          tasks: buildTaskTree(workPackages, statuses),
         }) satisfies TaskTreeResponse,
         error => sendOpRouteError(reply, error),
       )

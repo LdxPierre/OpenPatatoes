@@ -35,6 +35,8 @@ export const FAKE_STATUSES = {
   new: { id: 1, name: 'New', isClosed: false },
   inProgress: { id: 7, name: 'In progress', isClosed: false },
   closed: { id: 12, name: 'Closed', isClosed: true },
+  /** Statut ajouté par un administrateur : inconnu de l'app, fermé dans OP. */
+  delivered: { id: 15, name: 'Delivered', isClosed: true },
 } as const satisfies Record<string, FakeStatus>
 
 export interface FakeWorkPackage {
@@ -368,6 +370,9 @@ export async function startFakeOp(): Promise<FakeOp> {
   }
 
   app.get('/api/v3/users/me', async request => userResource(currentUser(request)))
+
+  app.get<{ Querystring: CollectionQuery }>('/api/v3/statuses', async request =>
+    paginatedCollection(Object.values(FAKE_STATUSES).map(statusResource), request.query, '/api/v3/statuses'))
 
   app.get<{ Querystring: CollectionQuery }>('/api/v3/projects', async (request) => {
     const user = currentUser(request)
