@@ -163,13 +163,14 @@ describe('faux serveur OP', () => {
       const response = await getAs('tok-alice', '/api/v3/work_packages/11')
 
       expect(response.status).toBe(200)
-      expect(await response.json()).toMatchObject({
+      const body = await response.json()
+      expect(body).not.toHaveProperty('remainingTime')
+      expect(body).toMatchObject({
         _type: 'WorkPackage',
         id: 11,
         subject: 'Enfant',
         lockVersion: 0,
         estimatedTime: 'PT2H30M',
-        remainingTime: null,
         description: { format: 'markdown', raw: 'Du **markdown**' },
         _links: {
           project: { href: '/api/v3/projects/1' },
