@@ -22,6 +22,8 @@ export interface FakeProject {
   identifier: string
   name: string
   memberIds: number[]
+  /** Type OP du projet ; `Project` si absent. Portefeuilles et programmes sont listés comme des projets. */
+  type?: 'Project' | 'Program' | 'Portfolio'
 }
 
 export interface FakeStatus {
@@ -212,7 +214,7 @@ function onlyOpenRequested(filters: string | undefined): boolean {
 
 function projectResource(project: FakeProject) {
   return {
-    _type: 'Project',
+    _type: project.type ?? 'Project',
     id: project.id,
     identifier: project.identifier,
     name: project.name,
@@ -342,7 +344,8 @@ export async function startFakeOp(): Promise<FakeOp> {
       subject: workPackage.subject,
       lockVersion: workPackage.lockVersion,
       estimatedTime: workPackage.estimatedTime,
-      remainingTime: workPackage.remainingTime,
+      // OP omet `remainingTime` quand il n'est pas renseigné.
+      ...(workPackage.remainingTime !== null && { remainingTime: workPackage.remainingTime }),
       description: { format: 'markdown', raw: workPackage.description, html: `<p>${workPackage.description}</p>` },
       _links: {
         self: { href: `/api/v3/work_packages/${workPackage.id}`, title: workPackage.subject },
