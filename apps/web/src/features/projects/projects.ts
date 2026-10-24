@@ -5,7 +5,8 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { apiFetch } from '@/shared/api/api-fetch'
 
-const projectsQueryKey = ['projects'] as const
+/** Préfixe des clés de cache des projets et de ce qui leur appartient (tâches). */
+export const projectsQueryKey = ['projects'] as const
 
 /** Projets OP visibles avec le jeton de l'utilisateur connecté. */
 export function useProjectsQuery() {

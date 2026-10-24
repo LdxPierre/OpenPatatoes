@@ -1,5 +1,5 @@
 import type { OpError } from './errors.js'
-import type { OpProject, OpUser } from './schemas.js'
+import type { OpProject, OpStatus, OpUser, OpWorkPackage } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -11,11 +11,19 @@ import {
   OpUnauthenticatedError,
   OpUnavailableError,
 } from './errors.js'
-import { opCollectionPageSchema, opProjectSchema, opUserSchema } from './schemas.js'
+import {
+  opCollectionPageSchema,
+  opProjectSchema,
+  opStatusSchema,
+  opUserSchema,
+  opWorkPackageSchema,
+} from './schemas.js'
 
 const REQUEST_TIMEOUT_MS = 10_000
 /** Taille des pages demandées à OP pour les collections. */
 const PAGE_SIZE = 100
+/** Les projets comptent des milliers de tâches : de plus grandes pages limitent les allers-retours. OP plafonne à sa propre limite. */
+const WORK_PACKAGE_PAGE_SIZE = 1000
 
 /** Accès à l'API OP au nom d'un utilisateur, avec son seul jeton. */
 export interface OpApi {
@@ -23,6 +31,10 @@ export interface OpApi {
   /** Tous les projets visibles avec le jeton, toutes pages confondues. */
   listProjects: () => ResultAsync<OpProject[], OpError>
   getProject: (id: number) => ResultAsync<OpProject, OpError>
+  /** Toutes les tâches du projet, fermées comprises, toutes pages confondues, triées par identifiant. */
+  listProjectWorkPackages: (projectId: number) => ResultAsync<OpWorkPackage[], OpError>
+  /** Tous les statuts de l'instance, avec leur caractère fermé. */
+  listStatuses: () => ResultAsync<OpStatus[], OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -85,7 +97,11 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
       const get = <T>(path: string, schema: z.ZodType<T>) => getUrl(`${apiRoot}${path}`, path, schema)
 
       /** Suit les liens `nextByOffset` d'une collection jusqu'à la dernière page. */
-      const getAll = <T>(path: string, element: z.ZodType<T>): ResultAsync<T[], OpError> => {
+      const getAll = <T>(
+        path: string,
+        element: z.ZodType<T>,
+        { pageSize = PAGE_SIZE, query = {} }: { pageSize?: number, query?: Record<string, string> } = {},
+      ): ResultAsync<T[], OpError> => {
         const pageSchema = opCollectionPageSchema(element)
         const fetchFrom = (url: string, previous: T[]): ResultAsync<T[], OpError> =>
           getUrl(url, path, pageSchema).andThen((page) => {
@@ -103,13 +119,29 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
               return errAsync(new OpInvalidResponseError(`${path} : lien de page hors de l'instance`))
             return fetchFrom(nextUrl.toString(), elements)
           })
-        return fetchFrom(`${apiRoot}${path}?pageSize=${PAGE_SIZE}`, [])
+        const params = new URLSearchParams({
+          ...query,
+          pageSize: String(pageSize),
+        })
+        return fetchFrom(`${apiRoot}${path}?${params}`, [])
       }
 
       return {
         getCurrentUser: () => get('/users/me', opUserSchema),
         listProjects: () => getAll('/projects', opProjectSchema),
         getProject: id => get(`/projects/${id}`, opProjectSchema),
+        listProjectWorkPackages: projectId =>
+          getAll(`/projects/${projectId}/work_packages`, opWorkPackageSchema, {
+            pageSize: WORK_PACKAGE_PAGE_SIZE,
+            // Sans filtre explicite, OP ne renvoie que les tâches ouvertes.
+            query: {
+              filters: '[]',
+              sortBy: JSON.stringify([
+                ['id', 'asc'],
+              ]),
+            },
+          }),
+        listStatuses: () => getAll('/statuses', opStatusSchema),
       }
     },
   }
