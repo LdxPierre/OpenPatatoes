@@ -19,7 +19,7 @@ export const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/features/home/HomePage.vue'),
+      component: () => import('@/features/projects/ProjectsPage.vue'),
     },
     {
       path: '/connexion',

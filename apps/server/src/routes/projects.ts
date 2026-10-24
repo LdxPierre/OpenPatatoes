@@ -1,3 +1,4 @@
+import type { ProjectResponse, ProjectsResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import { z } from 'zod'
@@ -23,7 +24,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
     app.get('/projects', async (request, reply) => {
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.listProjects())
       return result.match(
-        projects => ({ projects }),
+        projects => ({ projects }) satisfies ProjectsResponse,
         error => sendOpRouteError(reply, error, projectErrorMessages),
       )
     })
@@ -36,7 +37,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.getProject(params.data.id))
       return result.match(
-        project => ({ project }),
+        project => ({ project }) satisfies ProjectResponse,
         error => sendOpRouteError(reply, error, projectErrorMessages),
       )
     })
