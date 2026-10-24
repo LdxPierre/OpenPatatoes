@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import type { AlertVariants } from '@/shared/components/ui/alert'
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useLogoutMutation, useSessionQuery } from '@/features/auth/session'
 import { ApiError } from '@/shared/api/api-fetch'
 import { Alert, AlertDescription } from '@/shared/components/ui/alert'
+import { Button } from '@/shared/components/ui/button'
 import ThemeModeSelect from '@/theme/ThemeModeSelect.vue'
 import { useHealthQuery } from './use-health-query'
 
 // Page provisoire : elle prouve que le front, le proxy, l'API et le thème fonctionnent ensemble.
-// L'écran de connexion la remplacera.
+// La liste des projets la remplacera.
 
+const router = useRouter()
+const session = useSessionQuery()
+const logout = useLogoutMutation()
 const health = useHealthQuery()
+
+function signOut() {
+  logout.mutate(undefined, {
+    onSuccess: () => router.replace({ name: 'login' }),
+  })
+}
 
 const status = computed((): { variant: AlertVariants['variant'], text: string } => {
   if (health.isPending.value)
@@ -27,12 +39,18 @@ const status = computed((): { variant: AlertVariants['variant'], text: string } 
   <main class="home">
     <h1>OpenPatatoes</h1>
     <p class="lead">
-      Socle de l'application. L'écran de connexion remplacera cette page.
+      Connecté en tant que {{ session.data.value?.username }}.
     </p>
     <Alert :variant="status.variant" role="status">
       <AlertDescription>{{ status.text }}</AlertDescription>
     </Alert>
     <ThemeModeSelect />
+    <Button variant="outline" :disabled="logout.isPending.value" @click="signOut">
+      Se déconnecter
+    </Button>
+    <Alert v-if="logout.isError.value" variant="error">
+      <AlertDescription>La déconnexion a échoué. Réessayez.</AlertDescription>
+    </Alert>
   </main>
 </template>
 
