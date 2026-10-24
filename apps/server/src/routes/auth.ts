@@ -1,16 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
+import { loginRequestSchema } from '@openpatatoes/shared'
 import { eq } from 'drizzle-orm'
-import { z } from 'zod'
 import { hashPassword, verifyPassword } from '../auth/password.js'
 import { clearSessionCookie, requireSession, SESSION_COOKIE, setSessionCookie } from '../auth/plugin.js'
 import { createSession, revokeSession } from '../auth/sessions.js'
 import { users } from '../db/schema.js'
-
-const loginBodySchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-})
 
 // Vérifié quand l'identifiant est inconnu, pour que la durée de réponse ne révèle pas les comptes existants.
 const dummyHash = hashPassword('openpatatoes-dummy-password')
@@ -18,7 +13,7 @@ const dummyHash = hashPassword('openpatatoes-dummy-password')
 export function authRoutes({ db, cookie }: AppDependencies): FastifyPluginAsync {
   return async (app) => {
     app.post('/auth/login', async (request, reply) => {
-      const body = loginBodySchema.safeParse(request.body)
+      const body = loginRequestSchema.safeParse(request.body)
       if (!body.success)
         return reply.code(400).send({ error: 'invalid_request' })
 
