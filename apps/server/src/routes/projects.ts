@@ -7,14 +7,9 @@ import { opApiForUser } from '../op/connections.js'
 import { sendOpRouteError } from './op-errors.js'
 
 const projectParamsSchema = z.object({
-  id: z.string().regex(/^[1-9]\d*$/).transform(Number),
+  // Au-delà des entiers sûrs, `Number` arrondirait l'identifiant et OP recevrait un autre projet, ou `1e+21`.
+  id: z.string().regex(/^[1-9]\d*$/).transform(Number).refine(Number.isSafeInteger),
 })
-
-const projectErrorMessages = {
-  forbidden: 'OpenProject refuse l\'accès à ce projet avec votre jeton : demandez à en devenir membre dans OpenProject.',
-  // OP masque l'existence des projets dont on n'est pas membre : un 404 peut aussi être un refus.
-  notFound: 'Ce projet est introuvable ou inaccessible avec votre jeton OpenProject.',
-}
 
 /** Projets OP visibles avec le jeton de l'utilisateur connecté. */
 export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
@@ -25,7 +20,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.listProjects())
       return result.match(
         projects => ({ projects }) satisfies ProjectsResponse,
-        error => sendOpRouteError(reply, error, projectErrorMessages),
+        error => sendOpRouteError(reply, error),
       )
     })
 
@@ -38,7 +33,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.getProject(params.data.id))
       return result.match(
         project => ({ project }) satisfies ProjectResponse,
-        error => sendOpRouteError(reply, error, projectErrorMessages),
+        error => sendOpRouteError(reply, error),
       )
     })
   }

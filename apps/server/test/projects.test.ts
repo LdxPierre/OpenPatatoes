@@ -126,6 +126,55 @@ describe('projets', () => {
       expect(ids).toEqual(Array.from({ length: count }, (_, index) => index + 1))
     })
 
+    it('s\'arrête sur une page vide qui annonce une suite', async () => {
+      const session = await connectAs(alice, 'tok-alice')
+      op.interceptNext({
+        path: '/api/v3/projects',
+        status: 200,
+        body: {
+          _type: 'Collection',
+          _embedded: { elements: [] },
+          _links: {
+            nextByOffset: { href: '/api/v3/projects?offset=2&pageSize=100' },
+          },
+        },
+      })
+
+      const response = await get(session, '/api/projects')
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ projects: [] })
+    })
+
+    it('refuse de suivre un lien de page hors de l\'instance OP', async () => {
+      const session = await connectAs(alice, 'tok-alice')
+      op.interceptNext({
+        path: '/api/v3/projects',
+        status: 200,
+        body: {
+          _type: 'Collection',
+          _embedded: {
+            elements: [
+              {
+                _type: 'Project',
+                id: 1,
+                identifier: 'alpha',
+                name: 'Alpha',
+              },
+            ],
+          },
+          _links: {
+            nextByOffset: { href: 'https://ailleurs.example/api/v3/projects?offset=2&pageSize=100' },
+          },
+        },
+      })
+
+      const response = await get(session, '/api/projects')
+
+      expect(response.statusCode).toBe(502)
+      expect(response.json()).toMatchObject({ error: 'op_invalid_response' })
+    })
+
     it('renvoie une liste vide si aucun projet n\'est accessible', async () => {
       op.addProject({
         id: 2,
@@ -220,10 +269,7 @@ describe('projets', () => {
       const response = await get(session, '/api/projects/1')
 
       expect(response.statusCode).toBe(403)
-      expect(response.json()).toEqual({
-        error: 'op_forbidden',
-        message: expect.stringContaining('refuse l\'accès à ce projet'),
-      })
+      expect(response.json()).toMatchObject({ error: 'op_forbidden' })
     })
 
     it('traite un projet masqué par OP comme introuvable ou inaccessible', async () => {
@@ -238,10 +284,7 @@ describe('projets', () => {
       const response = await get(session, '/api/projects/2')
 
       expect(response.statusCode).toBe(404)
-      expect(response.json()).toEqual({
-        error: 'op_not_found',
-        message: expect.stringContaining('introuvable ou inaccessible'),
-      })
+      expect(response.json()).toMatchObject({ error: 'op_not_found' })
     })
 
     it('distingue OP indisponible d\'un refus d\'accès', async () => {
@@ -260,10 +303,17 @@ describe('projets', () => {
       expect(response.json()).toMatchObject({ error: 'op_unavailable' })
     })
 
-    it('refuse un identifiant de projet invalide sans interroger OP', async () => {
+    it('refuse un identifiant de projet invalide ou trop grand sans interroger OP', async () => {
       const session = await connectAs(alice, 'tok-alice')
 
-      for (const id of ['abc', '0', '-1', '1.5']) {
+      for (const id of [
+        'abc',
+        '0',
+        '-1',
+        '1.5',
+        '9007199254740993',
+        '1'.repeat(22),
+      ]) {
         const response = await get(session, `/api/projects/${id}`)
         expect(response.statusCode).toBe(400)
         expect(response.json()).toMatchObject({ error: 'invalid_request' })

@@ -5,17 +5,11 @@ import type { TokenDecryptionError } from '../op/token-cipher.js'
 
 export type OpRouteError = OpError | OpNotConnectedError | TokenDecryptionError
 
-/** Messages propres à la ressource demandée, à la place des messages génériques. */
-export interface OpRouteErrorMessages {
-  forbidden?: string
-  notFound?: string
-}
-
 /**
  * Traduit une erreur d'accès à OP en réponse HTTP pour le frontend.
  * Les erreurs venant d'OP (indisponible, réponse non conforme) restent distinctes des erreurs de l'application.
  */
-export function sendOpRouteError(reply: FastifyReply, error: OpRouteError, messages: OpRouteErrorMessages = {}) {
+export function sendOpRouteError(reply: FastifyReply, error: OpRouteError) {
   switch (error._tag) {
     case 'OpUnauthenticated':
       return reply.code(422).send({
@@ -24,15 +18,9 @@ export function sendOpRouteError(reply: FastifyReply, error: OpRouteError, messa
           'OpenProject a refusé ce jeton d\'API : vérifiez qu\'il est complet, qu\'il n\'a pas été révoqué, puis saisissez-le à nouveau.',
       })
     case 'OpForbidden':
-      return reply.code(403).send({
-        error: 'op_forbidden',
-        message: messages.forbidden ?? 'OpenProject refuse l\'accès à cette ressource.',
-      })
+      return reply.code(403).send({ error: 'op_forbidden', message: 'OpenProject refuse l\'accès à cette ressource.' })
     case 'OpNotFound':
-      return reply.code(404).send({
-        error: 'op_not_found',
-        message: messages.notFound ?? 'Ressource introuvable dans OpenProject.',
-      })
+      return reply.code(404).send({ error: 'op_not_found', message: 'Ressource introuvable dans OpenProject.' })
     case 'OpUnavailable':
       return reply
         .code(503)

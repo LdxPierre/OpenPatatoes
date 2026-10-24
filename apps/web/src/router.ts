@@ -22,7 +22,8 @@ export const router = createRouter({
       component: () => import('@/features/projects/ProjectsPage.vue'),
     },
     {
-      path: '/projets/:id([1-9]\\d*)',
+      // Au plus 15 chiffres : l'identifiant reste un entier sûr une fois converti en nombre.
+      path: '/projets/:id([1-9]\\d{0,14})',
       name: 'project',
       component: () => import('@/features/projects/ProjectPage.vue'),
       props: route => ({

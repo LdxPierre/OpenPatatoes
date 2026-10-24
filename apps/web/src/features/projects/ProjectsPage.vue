@@ -1,9 +1,8 @@
 <script setup lang="ts">
+import type { OpErrorMessages } from '@/shared/api/op-error'
 import { computed } from 'vue'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
-import { Alert, AlertDescription } from '@/shared/components/ui/alert'
-import { Button } from '@/shared/components/ui/button'
-import { canRetry, opErrorText } from './op-error'
+import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { useProjectsQuery } from './projects'
 
 const projects = useProjectsQuery()
@@ -17,13 +16,10 @@ const countText = computed(() => {
     : `${count.toLocaleString('fr-FR')} projets`
 })
 
-const errorText = computed(() => {
-  const error = projects.error.value
-  return error && opErrorText(error, {
-    forbidden: 'OpenProject refuse de lister les projets avec votre jeton. Vérifiez les droits de votre compte dans OpenProject.',
-    fallback: 'L\'app n\'a pas pu charger vos projets. Réessayez dans un instant.',
-  })
-})
+const errorMessages: OpErrorMessages = {
+  forbidden: 'OpenProject refuse de lister les projets avec votre jeton. Vérifiez les droits de votre compte dans OpenProject.',
+  fallback: 'L\'app n\'a pas pu charger vos projets. Réessayez dans un instant.',
+}
 </script>
 
 <template>
@@ -39,14 +35,13 @@ const errorText = computed(() => {
       Chargement des projets…
     </p>
 
-    <template v-else-if="projects.error.value">
-      <Alert variant="error">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
-      <Button v-if="canRetry(projects.error.value)" variant="outline" :disabled="projects.isFetching.value" @click="projects.refetch()">
-        Réessayer
-      </Button>
-    </template>
+    <OpErrorAlert
+      v-else-if="projects.error.value"
+      :error="projects.error.value"
+      :messages="errorMessages"
+      :retrying="projects.isFetching.value"
+      @retry="projects.refetch()"
+    />
 
     <p v-else-if="projects.data.value?.length === 0" class="muted" role="status">
       Aucun projet n'est accessible avec votre jeton OpenProject. Demandez à devenir membre d'un projet dans OpenProject.
@@ -96,7 +91,7 @@ h1 {
 }
 
 .count {
-  font-size: var(--op-text-sm);
+  font-size: var(--op-text-xs);
 }
 
 .muted {
@@ -135,7 +130,7 @@ ul {
 
 .project-row {
   height: var(--p-app-tree-row-height);
-  border-radius: 6px;
+  border-radius: var(--p-border-radius-md);
   font-size: var(--op-text-md);
   color: inherit;
   text-decoration: none;

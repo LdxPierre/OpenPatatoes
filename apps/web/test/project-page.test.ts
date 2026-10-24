@@ -78,10 +78,13 @@ describe('ouverture d\'un projet', () => {
     })
   })
 
-  it('mène à la page introuvable pour un identifiant invalide, sans appeler l\'API', async () => {
-    const wrapper = await mountApp('/projets/abc')
+  it('mène à la page introuvable pour un identifiant invalide ou trop grand, sans appeler l\'API', async () => {
+    for (const path of ['/projets/abc', `/projets/${'1'.repeat(16)}`]) {
+      const wrapper = await mountApp(path)
 
-    expect(wrapper.text()).toContain('Cette page n\'existe pas')
+      expect(wrapper.text()).toContain('Cette page n\'existe pas')
+      wrapper.unmount()
+    }
     expect(fakeApi.calls.some(call => call.path.startsWith('/projects/'))).toBe(false)
   })
 

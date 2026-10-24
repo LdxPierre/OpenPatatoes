@@ -1,8 +1,16 @@
+import type { VueWrapper } from '@vue/test-utils'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/shared/api/api-fetch'
 import { fakeApi } from './support/fake-api'
 import { expectNavigatedTo, mountApp } from './support/mount-app'
+
+function buttonNamed(wrapper: VueWrapper, name: string) {
+  const button = wrapper.findAll('button').find(candidate => candidate.text() === name)
+  if (!button)
+    throw new Error(`Bouton « ${name} » absent`)
+  return button
+}
 
 describe('liste des projets', () => {
   beforeEach(() => {
@@ -57,6 +65,22 @@ describe('liste des projets', () => {
       ],
       [
         new ApiError(502, 'op_invalid_response'),
+        'OpenProject a renvoyé une réponse inattendue',
+      ],
+      [
+        new ApiError(409, 'op_not_connected'),
+        'Aucun jeton OpenProject n\'est enregistré',
+      ],
+      [
+        new ApiError(500, 'op_token_unreadable'),
+        'L\'app ne peut plus lire votre jeton OpenProject',
+      ],
+      [
+        new ApiError(401, 'unauthenticated'),
+        'Votre session a expiré',
+      ],
+      [
+        new ApiError(500, 'internal_error'),
         'L\'app n\'a pas pu charger vos projets',
       ],
     ])('affiche un message adapté à %s', async (error, message) => {
@@ -70,14 +94,74 @@ describe('liste des projets', () => {
       expect(wrapper.find('.project-list').exists()).toBe(false)
     })
 
-    it('ne propose pas de réessayer après un refus', async () => {
+    it.each([
+      [
+        new ApiError(422, 'op_token_invalid'),
+        'Saisir un nouveau jeton',
+      ],
+      [
+        new ApiError(409, 'op_not_connected'),
+        'Saisir un nouveau jeton',
+      ],
+      [
+        new ApiError(500, 'op_token_unreadable'),
+        'Saisir un nouveau jeton',
+      ],
+      [
+        new ApiError(401, 'unauthenticated'),
+        'Se connecter à nouveau',
+      ],
+      [
+        new ApiError(403, 'op_forbidden'),
+        undefined,
+      ],
+    ])('après %s, propose seulement l\'action qui peut aboutir', async (error, action) => {
+      fakeApi.on('GET', '/projects', () => {
+        throw error
+      })
+      const wrapper = await mountApp('/')
+
+      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+      expect(wrapper.findAll('main button').map(button => button.text())).toEqual(action
+        ? [action]
+        : [])
+    })
+
+    it('mène à la saisie d\'un nouveau jeton, puis recharge les projets avec lui', async () => {
       fakeApi.on('GET', '/projects', () => {
         throw new ApiError(422, 'op_token_invalid')
       })
       const wrapper = await mountApp('/')
 
-      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
-      expect(wrapper.findAll('button').some(button => button.text() === 'Réessayer')).toBe(false)
+      await buttonNamed(wrapper, 'Saisir un nouveau jeton').trigger('click')
+      await expectNavigatedTo('/jeton-op?redirect=/')
+
+      fakeApi.on('PUT', '/profile/op-connection', () => ({
+        opUser: { id: 7, name: 'Alice Martin' },
+      }))
+      fakeApi.on('GET', '/projects', () => ({
+        projects: [
+          { id: 1, identifier: 'alpha', name: 'Alpha' },
+        ],
+      }))
+      await wrapper.find('#op-token').setValue('tok-nouveau')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+      await buttonNamed(wrapper, 'Continuer').trigger('click')
+      await expectNavigatedTo('/')
+
+      await vi.waitFor(() => expect(wrapper.find('.project-row .name').text()).toBe('Alpha'))
+    })
+
+    it('mène à la connexion quand la session a expiré', async () => {
+      fakeApi.on('GET', '/projects', () => {
+        throw new ApiError(401, 'unauthenticated')
+      })
+      const wrapper = await mountApp('/')
+
+      await buttonNamed(wrapper, 'Se connecter à nouveau').trigger('click')
+
+      await expectNavigatedTo('/connexion?redirect=/')
     })
 
     it('laisse réessayer quand OP ne répond pas', async () => {
@@ -92,8 +176,7 @@ describe('liste des projets', () => {
           { id: 1, identifier: 'alpha', name: 'Alpha' },
         ],
       }))
-      const retry = wrapper.findAll('button').find(button => button.text() === 'Réessayer')
-      await retry?.trigger('click')
+      await buttonNamed(wrapper, 'Réessayer').trigger('click')
       await flushPromises()
 
       await vi.waitFor(() => expect(wrapper.find('.project-row .name').text()).toBe('Alpha'))
@@ -105,8 +188,7 @@ describe('liste des projets', () => {
     fakeApi.on('POST', '/auth/logout', () => undefined)
     const wrapper = await mountApp('/')
 
-    const signOut = wrapper.findAll('button').find(button => button.text() === 'Se déconnecter')
-    await signOut?.trigger('click')
+    await buttonNamed(wrapper, 'Se déconnecter').trigger('click')
     await flushPromises()
 
     await expectNavigatedTo('/connexion')

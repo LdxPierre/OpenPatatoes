@@ -10,10 +10,15 @@ export function useSaveOpTokenMutation() {
   return useMutation({
     mutationFn: (body: SaveOpTokenRequest) =>
       apiFetch('/profile/op-connection', { method: 'PUT', body, schema: opConnectionResponseSchema }),
-    onSuccess: () =>
+    onSuccess: () => {
+      // Rien de ce qui a été lu avec l'ancien jeton ne doit rester en cache.
+      queryClient.removeQueries({
+        predicate: query => query.queryKey[0] !== sessionQueryOptions.queryKey[0],
+      })
       queryClient.setQueryData(
         sessionQueryOptions.queryKey,
         (user: SessionUser | null | undefined) => user && { ...user, opConnected: true },
-      ),
+      )
+    },
   })
 }

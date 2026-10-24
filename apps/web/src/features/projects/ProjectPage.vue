@@ -1,24 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import type { OpErrorMessages } from '@/shared/api/op-error'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
-import { Alert, AlertDescription } from '@/shared/components/ui/alert'
-import { Button } from '@/shared/components/ui/button'
-import { canRetry, opErrorText } from './op-error'
+import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { useProjectQuery } from './projects'
 
 const props = defineProps<{ id: number }>()
 
 const project = useProjectQuery(() => props.id)
 
-const errorText = computed(() => {
-  const error = project.error.value
-  return error && opErrorText(error, {
-    forbidden: 'OpenProject refuse l\'accès à ce projet avec votre jeton. Demandez à en devenir membre dans OpenProject.',
-    // OP masque l'existence des projets dont on n'est pas membre : un 404 peut aussi être un refus.
-    notFound: 'Ce projet est introuvable ou inaccessible avec votre jeton OpenProject. Vérifiez le lien, ou demandez à devenir membre du projet dans OpenProject.',
-    fallback: 'L\'app n\'a pas pu ouvrir ce projet. Réessayez dans un instant.',
-  })
-})
+const errorMessages: OpErrorMessages = {
+  forbidden: 'OpenProject refuse l\'accès à ce projet avec votre jeton. Demandez à en devenir membre dans OpenProject.',
+  // OP masque l'existence des projets dont on n'est pas membre : un 404 peut aussi être un refus.
+  notFound: 'Ce projet est introuvable ou inaccessible avec votre jeton OpenProject. Vérifiez le lien, ou demandez à devenir membre du projet dans OpenProject.',
+  fallback: 'L\'app n\'a pas pu ouvrir ce projet. Réessayez dans un instant.',
+}
 </script>
 
 <template>
@@ -33,14 +28,13 @@ const errorText = computed(() => {
       Ouverture du projet…
     </p>
 
-    <template v-else-if="project.error.value">
-      <Alert variant="error">
-        <AlertDescription>{{ errorText }}</AlertDescription>
-      </Alert>
-      <Button v-if="canRetry(project.error.value)" variant="outline" :disabled="project.isFetching.value" @click="project.refetch()">
-        Réessayer
-      </Button>
-    </template>
+    <OpErrorAlert
+      v-else-if="project.error.value"
+      :error="project.error.value"
+      :messages="errorMessages"
+      :retrying="project.isFetching.value"
+      @retry="project.refetch()"
+    />
 
     <template v-else-if="project.data.value">
       <div class="title-bar">
