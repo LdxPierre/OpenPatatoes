@@ -107,6 +107,41 @@ describe('projets', () => {
       })
     })
 
+    it('garde les portefeuilles et programmes listés par OP, sans faire échouer la liste', async () => {
+      op.addProject({
+        id: 1,
+        identifier: 'alpha',
+        name: 'Alpha',
+        memberIds: [opAlice.id],
+      })
+      op.addProject({
+        id: 2,
+        identifier: 'jira-exit',
+        name: 'Jira exit',
+        memberIds: [opAlice.id],
+        type: 'Portfolio',
+      })
+      op.addProject({
+        id: 3,
+        identifier: 'programme',
+        name: 'Programme',
+        memberIds: [opAlice.id],
+        type: 'Program',
+      })
+      const session = await connectAs(alice, 'tok-alice')
+
+      const response = await get(session, '/api/projects')
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        projects: [
+          { id: 1, identifier: 'alpha', name: 'Alpha' },
+          { id: 2, identifier: 'jira-exit', name: 'Jira exit' },
+          { id: 3, identifier: 'programme', name: 'Programme' },
+        ],
+      })
+    })
+
     it('suit toutes les pages de l\'API OP', async () => {
       const count = 250
       for (let id = 1; id <= count; id++) {
@@ -253,6 +288,24 @@ describe('projets', () => {
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({
         project: { id: 1, identifier: 'alpha', name: 'Alpha' },
+      })
+    })
+
+    it('ouvre un portefeuille comme un projet', async () => {
+      op.addProject({
+        id: 2,
+        identifier: 'jira-exit',
+        name: 'Jira exit',
+        memberIds: [opAlice.id],
+        type: 'Portfolio',
+      })
+      const session = await connectAs(alice, 'tok-alice')
+
+      const response = await get(session, '/api/projects/2')
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        project: { id: 2, identifier: 'jira-exit', name: 'Jira exit' },
       })
     })
 

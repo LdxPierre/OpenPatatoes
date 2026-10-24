@@ -15,9 +15,10 @@ export const opUserSchema = z
 
 export type OpUser = z.output<typeof opUserSchema>
 
+/** OP liste aussi les portefeuilles et les programmes parmi les projets : ils ont le même identifiant et le même nom. */
 export const opProjectSchema = z
   .object({
-    _type: z.literal('Project'),
+    _type: z.enum(['Project', 'Program', 'Portfolio']),
     id: z.number().int(),
     identifier: z.string(),
     name: z.string(),
