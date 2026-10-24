@@ -1,4 +1,4 @@
-import type { ProjectResponse, ProjectsResponse } from '@openpatatoes/shared'
+import type { ProjectResponse, ProjectsResponse, TaskTreeResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import { z } from 'zod'
@@ -50,7 +50,7 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       return result.match(
         workPackages => ({
           tasks: buildTaskTree(workPackages),
-        }),
+        }) satisfies TaskTreeResponse,
         error => sendOpRouteError(reply, error),
       )
     })

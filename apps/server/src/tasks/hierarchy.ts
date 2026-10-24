@@ -1,13 +1,5 @@
+import type { TaskNode } from '@openpatatoes/shared'
 import type { OpWorkPackage } from '../op/schemas.js'
-
-/** Tâche dans l'arbre d'un projet : une ligne de la liste, avec ses sous-tâches. */
-export interface TaskNode {
-  id: number
-  subject: string
-  status: { id: number, name: string }
-  assignee: { id: number, name: string } | null
-  children: TaskNode[]
-}
 
 /**
  * Construit l'arbre des tâches depuis la liste plate d'OP. Le premier niveau contient

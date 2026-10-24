@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type { OpErrorMessages } from '@/shared/api/op-error'
+import { computed } from 'vue'
+import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
+import TaskTree from '@/features/tasks/TaskTree.vue'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { useProjectQuery } from './projects'
@@ -7,12 +10,28 @@ import { useProjectQuery } from './projects'
 const props = defineProps<{ id: number }>()
 
 const project = useProjectQuery(() => props.id)
+const tasks = useTaskTreeQuery(() => props.id)
+
+const countText = computed(() => {
+  if (!tasks.data.value?.length)
+    return null
+  const count = countTasks(tasks.data.value)
+  return count === 1
+    ? '1 tâche'
+    : `${count.toLocaleString('fr-FR')} tâches`
+})
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject refuse l\'accès à ce projet avec votre jeton. Demandez à en devenir membre dans OpenProject.',
   // OP masque l'existence des projets dont on n'est pas membre : un 404 peut aussi être un refus.
   notFound: 'Ce projet est introuvable ou inaccessible avec votre jeton OpenProject. Vérifiez le lien, ou demandez à devenir membre du projet dans OpenProject.',
   fallback: 'L\'app n\'a pas pu ouvrir ce projet. Réessayez dans un instant.',
+}
+
+const taskErrorMessages: OpErrorMessages = {
+  forbidden: 'OpenProject refuse de lister les tâches de ce projet avec votre jeton. Vérifiez vos droits sur ce projet dans OpenProject.',
+  notFound: errorMessages.notFound,
+  fallback: 'L\'app n\'a pas pu charger les tâches de ce projet. Réessayez dans un instant.',
 }
 </script>
 
@@ -40,11 +59,31 @@ const errorMessages: OpErrorMessages = {
       <div class="title-bar">
         <h1>{{ project.data.value.name }}</h1>
         <span class="identifier">{{ project.data.value.identifier }}</span>
+        <span v-if="countText" class="count op-num">{{ countText }}</span>
       </div>
-      <!-- L'arbre des tâches arrive avec #6. -->
-      <p class="muted">
-        Les tâches de ce projet ne sont pas encore affichées.
+
+      <p v-if="tasks.isPending.value" class="muted" role="status">
+        Chargement des tâches…
       </p>
+
+      <OpErrorAlert
+        v-else-if="tasks.error.value"
+        :error="tasks.error.value"
+        :messages="taskErrorMessages"
+        :retrying="tasks.isFetching.value"
+        @retry="tasks.refetch()"
+      />
+
+      <p v-else-if="tasks.data.value?.length === 0" class="muted" role="status">
+        Ce projet n'a encore aucune tâche. Les tâches créées dans OpenProject apparaîtront ici.
+      </p>
+
+      <TaskTree
+        v-else-if="tasks.data.value"
+        :key="id"
+        :tasks="tasks.data.value"
+        :label="`Tâches de ${project.data.value.name}`"
+      />
     </template>
   </main>
 </template>
@@ -81,12 +120,18 @@ h1 {
 }
 
 .identifier,
+.count,
 .muted {
   color: var(--p-text-muted-color);
 }
 
 .identifier {
   font-size: var(--op-text-sm);
+}
+
+.count {
+  flex: none;
+  font-size: var(--op-text-xs);
 }
 
 .muted {
