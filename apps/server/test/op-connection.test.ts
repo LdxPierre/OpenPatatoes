@@ -278,6 +278,60 @@ describe('jeton OP', () => {
     })
   })
 
+  describe('indicateur de la session', () => {
+    async function opConnected(session: string): Promise<unknown> {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        cookies: { [SESSION_COOKIE]: session },
+      })
+      return response.json().user.opConnected
+    }
+
+    function login(account: { username: string, password: string }) {
+      return app.inject({ method: 'POST', url: '/api/auth/login', payload: account })
+    }
+
+    it('indique l\'absence de jeton à la connexion et dans la session', async () => {
+      const response = await login(alice)
+      const session = await loginAs(alice)
+
+      expect(response.json().user.opConnected).toBe(false)
+      expect(await opConnected(session)).toBe(false)
+    })
+
+    it('indique un jeton enregistré, sans interroger OP', async () => {
+      op.addUser({ name: 'Alice', token: 'tok-alice' })
+      const session = await loginAs(alice)
+      await saveToken(session, 'tok-alice')
+      op.interceptNext({ path: '/api/v3/users/me', status: 503 })
+
+      const response = await login(alice)
+
+      expect(response.json().user.opConnected).toBe(true)
+      expect(await opConnected(session)).toBe(true)
+      // L'interception n'a pas servi : la session n'a pas interrogé OP.
+      expect((await getConnection(session)).statusCode).toBe(503)
+    })
+
+    it('n\'indique plus de jeton après sa suppression', async () => {
+      op.addUser({ name: 'Alice', token: 'tok-alice' })
+      const session = await loginAs(alice)
+      await saveToken(session, 'tok-alice')
+
+      await deleteConnection(session)
+
+      expect(await opConnected(session)).toBe(false)
+    })
+
+    it('ne tient compte que du jeton de l\'utilisateur courant', async () => {
+      op.addUser({ name: 'Bob', token: 'tok-bob' })
+      await saveToken(await loginAs(bob), 'tok-bob')
+
+      expect(await opConnected(await loginAs(alice))).toBe(false)
+    })
+  })
+
   describe('isolement entre utilisateurs', () => {
     it('interroge OP avec le jeton de l\'utilisateur courant uniquement', async () => {
       const opAlice = op.addUser({ name: 'Alice OP', token: 'tok-alice' })

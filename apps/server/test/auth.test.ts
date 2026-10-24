@@ -60,6 +60,7 @@ describe('authentification', () => {
           id: expect.any(String),
           username: 'admin',
           isAdmin: true,
+          opConnected: false,
         },
       })
     })
