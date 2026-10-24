@@ -22,6 +22,14 @@ export const router = createRouter({
       component: () => import('@/features/projects/ProjectsPage.vue'),
     },
     {
+      path: '/projets/:id([1-9]\\d*)',
+      name: 'project',
+      component: () => import('@/features/projects/ProjectPage.vue'),
+      props: route => ({
+        id: Number(route.params.id),
+      }),
+    },
+    {
       path: '/connexion',
       name: 'login',
       component: () => import('@/features/auth/LoginPage.vue'),
