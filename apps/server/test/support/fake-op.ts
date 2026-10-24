@@ -162,8 +162,9 @@ type CollectionQuery = Record<string, string | undefined>
 /**
  * Collection paginée à la manière d'OP : `offset` est un numéro de page (à partir de 1),
  * et les liens `nextByOffset` / `previousByOffset` conservent les autres paramètres.
+ * Certaines collections ont un type propre : OP renvoie `WorkPackageCollection` pour les tâches.
  */
-function paginatedCollection<T>(all: T[], query: CollectionQuery, path: string) {
+function paginatedCollection<T>(all: T[], query: CollectionQuery, path: string, type = 'Collection') {
   const pageSize = Math.max(1, Number(query.pageSize) || DEFAULT_PAGE_SIZE)
   const offset = Math.max(1, Number(query.offset) || 1)
   const elements = all.slice((offset - 1) * pageSize, offset * pageSize)
@@ -178,7 +179,7 @@ function paginatedCollection<T>(all: T[], query: CollectionQuery, path: string) 
     return { href: `${path}?${params}` }
   }
   return {
-    _type: 'Collection',
+    _type: type,
     total: all.length,
     count: elements.length,
     pageSize,
@@ -392,7 +393,7 @@ export async function startFakeOp(): Promise<FakeOp> {
         .filter(workPackage => workPackage.projectId === project.id)
         .filter(workPackage => !onlyOpen || !findStatus(workPackage.statusId)?.isClosed)
         .map(workPackageResource)
-      return paginatedCollection(workPackages, request.query, `/api/v3/projects/${project.id}/work_packages`)
+      return paginatedCollection(workPackages, request.query, `/api/v3/projects/${project.id}/work_packages`, 'WorkPackageCollection')
     },
   )
 

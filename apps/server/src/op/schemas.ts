@@ -74,10 +74,13 @@ export const opWorkPackageSchema = z
 
 export type OpWorkPackage = z.output<typeof opWorkPackageSchema>
 
-/** Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages. */
+/**
+ * Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages.
+ * Le type varie selon la ressource : `Collection`, mais `WorkPackageCollection` pour les tâches.
+ */
 export function opCollectionPageSchema<T extends z.ZodType>(element: T) {
   return z.object({
-    _type: z.literal('Collection'),
+    _type: z.string().regex(/^\w*Collection$/),
     _embedded: z.object({
       elements: z.array(element),
     }),
