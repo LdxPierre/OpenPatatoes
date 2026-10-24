@@ -1,15 +1,9 @@
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify'
+import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import { saveOpTokenRequestSchema } from '@openpatatoes/shared'
-import { requireSession } from '../auth/plugin.js'
+import { currentUserId, requireSession } from '../auth/plugin.js'
 import { deleteOpToken, opApiForUser, saveOpToken } from '../op/connections.js'
 import { sendOpRouteError } from './op-errors.js'
-
-function currentUserId(request: FastifyRequest): string {
-  if (!request.user)
-    throw new Error('Route privée appelée sans utilisateur')
-  return request.user.id
-}
 
 /** Jeton d'API OP de l'utilisateur connecté, dans son profil. */
 export function opConnectionRoutes(deps: AppDependencies): FastifyPluginAsync {

@@ -19,7 +19,16 @@ export const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('@/features/home/HomePage.vue'),
+      component: () => import('@/features/projects/ProjectsPage.vue'),
+    },
+    {
+      // Au plus 15 chiffres : l'identifiant reste un entier sûr une fois converti en nombre.
+      path: '/projets/:id([1-9]\\d{0,14})',
+      name: 'project',
+      component: () => import('@/features/projects/ProjectPage.vue'),
+      props: route => ({
+        id: Number(route.params.id),
+      }),
     },
     {
       path: '/connexion',

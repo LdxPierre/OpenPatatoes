@@ -44,7 +44,7 @@ export const fakeApi = {
     handlers.clear()
     fakeApi.calls = []
     // Interrogée par l'accueil, où mènent beaucoup de redirections.
-    fakeApi.on('GET', '/health', () => ({ status: 'ok', database: 'ok' }))
+    fakeApi.on('GET', '/projects', () => ({ projects: [] }))
     vi.mocked(apiFetch).mockImplementation(fakeFetch as typeof apiFetch)
   },
 }

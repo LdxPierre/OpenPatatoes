@@ -85,6 +85,10 @@ describe('saisie du jeton OP', () => {
       ],
       [
         new ApiError(502, 'op_invalid_response'),
+        'OpenProject a renvoyé une réponse inattendue',
+      ],
+      [
+        new ApiError(500, 'internal_error'),
         'L\'app n\'a pas pu enregistrer ce jeton',
       ],
     ])('affiche un message adapté à %s et reste sur le formulaire', async (error, message) => {

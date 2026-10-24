@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { redirectTarget } from '@/features/auth/redirect'
 import { useLogoutMutation } from '@/features/auth/session'
-import { ApiError } from '@/shared/api/api-fetch'
+import { opErrorText } from '@/shared/api/op-error'
 import { Alert, AlertDescription } from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
@@ -19,15 +19,10 @@ const token = ref('')
 
 const errorText = computed(() => {
   const error = save.error.value
-  if (!error)
-    return null
-  if (error instanceof ApiError && error.code === 'op_token_invalid')
-    return 'OpenProject a refusé ce jeton. Vérifiez-le, ou générez-en un nouveau.'
-  if (error instanceof ApiError && error.code === 'op_unavailable')
-    return 'OpenProject ne répond pas. Réessayez dans un instant.'
-  if (error instanceof ApiError && error.status === 0)
-    return 'L\'app ne répond pas. Vérifiez votre connexion, puis réessayez.'
-  return 'L\'app n\'a pas pu enregistrer ce jeton. Réessayez dans un instant.'
+  return error && opErrorText(error, {
+    tokenInvalid: 'OpenProject a refusé ce jeton. Vérifiez-le, ou générez-en un nouveau.',
+    fallback: 'L\'app n\'a pas pu enregistrer ce jeton. Réessayez dans un instant.',
+  })
 })
 
 function submit() {

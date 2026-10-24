@@ -1,5 +1,5 @@
 import type { OpError } from './errors.js'
-import type { OpUser } from './schemas.js'
+import type { OpProject, OpUser } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -11,13 +11,18 @@ import {
   OpUnauthenticatedError,
   OpUnavailableError,
 } from './errors.js'
-import { opUserSchema } from './schemas.js'
+import { opCollectionPageSchema, opProjectSchema, opUserSchema } from './schemas.js'
 
 const REQUEST_TIMEOUT_MS = 10_000
+/** Taille des pages demandées à OP pour les collections. */
+const PAGE_SIZE = 100
 
 /** Accès à l'API OP au nom d'un utilisateur, avec son seul jeton. */
 export interface OpApi {
   getCurrentUser: () => ResultAsync<OpUser, OpError>
+  /** Tous les projets visibles avec le jeton, toutes pages confondues. */
+  listProjects: () => ResultAsync<OpProject[], OpError>
+  getProject: (id: number) => ResultAsync<OpProject, OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -43,15 +48,18 @@ function errorForStatus(status: number): OpError {
 }
 
 export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
-  const apiRoot = `${baseUrl.replace(/\/+$/, '')}/api/v3`
+  const instanceUrl = baseUrl.replace(/\/+$/, '')
+  const apiRoot = `${instanceUrl}/api/v3`
+  const instanceOrigin = new URL(instanceUrl).origin
 
   return {
     withToken(token) {
       const authorization = `Basic ${Buffer.from(`apikey:${token}`).toString('base64')}`
 
-      const get = <T>(path: string, schema: z.ZodType<T>): ResultAsync<T, OpError> =>
+      /** `label` identifie la ressource dans les messages d'erreur, sans query string. */
+      const getUrl = <T>(url: string, label: string, schema: z.ZodType<T>): ResultAsync<T, OpError> =>
         ResultAsync.fromPromise(
-          fetch(`${apiRoot}${path}`, {
+          fetch(url, {
             headers: { authorization, accept: 'application/hal+json' },
             signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
           }),
@@ -71,11 +79,37 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             const parsed = schema.safeParse(body)
             return parsed.success
               ? okAsync(parsed.data)
-              : errAsync(new OpInvalidResponseError(`${path} : ${z.prettifyError(parsed.error)}`))
+              : errAsync(new OpInvalidResponseError(`${label} : ${z.prettifyError(parsed.error)}`))
           })
+
+      const get = <T>(path: string, schema: z.ZodType<T>) => getUrl(`${apiRoot}${path}`, path, schema)
+
+      /** Suit les liens `nextByOffset` d'une collection jusqu'à la dernière page. */
+      const getAll = <T>(path: string, element: z.ZodType<T>): ResultAsync<T[], OpError> => {
+        const pageSchema = opCollectionPageSchema(element)
+        const fetchFrom = (url: string, previous: T[]): ResultAsync<T[], OpError> =>
+          getUrl(url, path, pageSchema).andThen((page) => {
+            const elements = [
+              ...previous,
+              ...page._embedded.elements,
+            ]
+            const next = page._links.nextByOffset
+            // Une page vide qui annonce une suite bouclerait sans fin.
+            if (!next || page._embedded.elements.length === 0)
+              return okAsync(elements)
+            const nextUrl = new URL(next.href, instanceUrl)
+            // Le jeton ne doit jamais partir vers un autre hôte que l'instance OP.
+            if (nextUrl.origin !== instanceOrigin)
+              return errAsync(new OpInvalidResponseError(`${path} : lien de page hors de l'instance`))
+            return fetchFrom(nextUrl.toString(), elements)
+          })
+        return fetchFrom(`${apiRoot}${path}?pageSize=${PAGE_SIZE}`, [])
+      }
 
       return {
         getCurrentUser: () => get('/users/me', opUserSchema),
+        listProjects: () => getAll('/projects', opProjectSchema),
+        getProject: id => get(`/projects/${id}`, opProjectSchema),
       }
     },
   }
