@@ -12,6 +12,8 @@ export const sessionUserSchema = z.object({
   id: z.string(),
   username: z.string(),
   isAdmin: z.boolean(),
+  /** Un jeton OP est enregistré (sans garantie qu'OP l'accepte encore). */
+  opConnected: z.boolean(),
 })
 
 export type SessionUser = z.infer<typeof sessionUserSchema>

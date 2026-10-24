@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
+import { redirectTarget } from './redirect'
 import { useLoginMutation } from './session'
 
 const route = useRoute()
@@ -26,19 +27,11 @@ const errorText = computed(() => {
   return 'L\'app n\'a pas pu vous connecter. Réessayez dans un instant.'
 })
 
-// Seul un chemin interne est accepté, pour ne pas renvoyer vers un autre site.
-function redirectTarget() {
-  const redirect = route.query.redirect
-  return typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
-    ? redirect
-    : '/'
-}
-
 function submit() {
   login.mutate(
     { username: username.value, password: password.value },
     {
-      onSuccess: () => router.replace(redirectTarget()),
+      onSuccess: () => router.replace(redirectTarget(route.query.redirect)),
     },
   )
 }

@@ -1,7 +1,7 @@
 import type { Database } from '../db/client.js'
 import { createHash, randomBytes } from 'node:crypto'
-import { eq } from 'drizzle-orm'
-import { sessions, users } from '../db/schema.js'
+import { eq, sql } from 'drizzle-orm'
+import { opConnections, sessions, users } from '../db/schema.js'
 
 export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -9,6 +9,16 @@ export interface SessionUser {
   id: string
   username: string
   isAdmin: boolean
+  /** Un jeton OP est enregistré ; il n'est pas vérifié auprès d'OP. */
+  opConnected: boolean
+}
+
+/** Colonnes de l'utilisateur de session ; la requête doit joindre `op_connections` à gauche. */
+export const sessionUserColumns = {
+  id: users.id,
+  username: users.username,
+  isAdmin: users.isAdmin,
+  opConnected: sql<boolean>`${opConnections.userId} is not null`,
 }
 
 export interface ValidSession {
@@ -44,10 +54,11 @@ export async function validateSession(db: Database, token: string): Promise<Vali
   const [row] = await db
     .select({
       expiresAt: sessions.expiresAt,
-      user: { id: users.id, username: users.username, isAdmin: users.isAdmin },
+      user: sessionUserColumns,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
+    .leftJoin(opConnections, eq(opConnections.userId, users.id))
     .where(eq(sessions.id, id))
   if (!row)
     return null
