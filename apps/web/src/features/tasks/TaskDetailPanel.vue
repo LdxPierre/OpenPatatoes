@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { OpErrorMessages } from '@/shared/api/op-error'
-import { computed } from 'vue'
+import { onKeyStroke } from '@vueuse/core'
+import { computed, onMounted, useTemplateRef, watch } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { Button } from '@/shared/components/ui/button'
 import { formatHours, useTaskDetailQuery } from './tasks'
@@ -12,24 +13,36 @@ import { formatHours, useTaskDetailQuery } from './tasks'
 const props = defineProps<{
   projectId: number
   taskId: number
+  /** Sur petit écran, le panneau recouvre l'arbre : il prend le focus, comme une fenêtre. */
+  covering?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
 
 const detail = useTaskDetailQuery(() => props.projectId, () => props.taskId)
+const task = computed(() => detail.data.value)
+
+onKeyStroke('Escape', () => emit('close'))
+
+const closeButton = useTemplateRef('closeButton')
+
+function takeFocus() {
+  if (props.covering)
+    (closeButton.value?.$el as HTMLElement | undefined)?.focus()
+}
+
+onMounted(takeFocus)
+watch(() => [props.taskId, props.covering], takeFocus, { flush: 'post' })
 
 /** Titre et parent viennent de l'arbre en attendant OP ; les heures, seulement d'OP. */
 const hoursPending = computed(() => detail.isPlaceholderData.value)
 
-const hours = computed(() => {
-  const task = detail.data.value
-  if (!task)
-    return []
-  return [
-    { label: 'Temps estimé', value: task.estimatedHours },
-    { label: 'Temps restant', value: task.remainingHours },
-  ]
-})
+const hours = computed(() => task.value
+  ? [
+      { label: 'Temps estimé', value: task.value.estimatedHours },
+      { label: 'Temps restant', value: task.value.remainingHours },
+    ]
+  : [])
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject refuse l\'accès à cette tâche avec votre jeton. Vérifiez vos droits sur son projet dans OpenProject.',
@@ -42,28 +55,30 @@ const errorMessages: OpErrorMessages = {
 <template>
   <aside
     class="task-detail"
-    :aria-labelledby="detail.data.value ? 'task-detail-title' : undefined"
-    :aria-label="detail.data.value ? undefined : 'Détail de la tâche'"
+    :role="covering ? 'dialog' : undefined"
+    :aria-modal="covering || undefined"
+    :aria-labelledby="task ? 'task-detail-title' : undefined"
+    :aria-label="task ? undefined : 'Détail de la tâche'"
   >
     <div class="head">
       <p v-if="detail.isPending.value" class="muted" role="status">
         Ouverture de la tâche…
       </p>
 
-      <div v-else-if="detail.data.value" class="lineage">
+      <div v-else-if="task" class="lineage">
         <RouterLink
-          v-if="detail.data.value.parent"
+          v-if="task.parent"
           class="parent"
-          :to="{ name: 'task', params: { id: projectId, taskId: detail.data.value.parent.id } }"
+          :to="{ name: 'task', params: { id: projectId, taskId: task.parent.id } }"
         >
-          <span class="sr-only">Tâche parente : </span>{{ detail.data.value.parent.subject }}
+          <span class="sr-only">Tâche parente : </span>{{ task.parent.subject }}
         </RouterLink>
-        <h2 id="task-detail-title" :class="{ child: detail.data.value.parent }">
-          {{ detail.data.value.subject }}
+        <h2 id="task-detail-title" :class="{ child: task.parent }">
+          {{ task.subject }}
         </h2>
       </div>
 
-      <Button variant="ghost" size="icon" class="close" aria-label="Fermer le détail" @click="emit('close')">
+      <Button ref="closeButton" variant="ghost" size="icon" class="close" aria-label="Fermer le détail" @click="emit('close')">
         <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
           <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
@@ -78,9 +93,9 @@ const errorMessages: OpErrorMessages = {
       @retry="detail.refetch()"
     />
 
-    <template v-else-if="detail.data.value">
+    <template v-else-if="task">
       <p class="ref op-num">
-        #{{ detail.data.value.id }}
+        #{{ task.id }}
       </p>
 
       <dl class="hours" :aria-busy="hoursPending">
@@ -208,17 +223,17 @@ dd {
   margin: 0;
 }
 
-/* Les heures sont ce qu'on vient lire : grand chiffre, même largeur pour comparer. */
+/* Les heures sont ce qu'on vient lire : à la taille du titre, chiffres de même largeur. */
 .value,
 .pending {
-  font-size: var(--op-text-2xl);
+  font-size: var(--op-text-xl);
   font-weight: 500;
   line-height: 1.3;
 }
 
 .empty {
   font-size: var(--op-text-md);
-  line-height: calc(var(--op-text-2xl) * 1.3);
+  line-height: calc(var(--op-text-xl) * 1.3);
 }
 
 /* Sur petit écran, le détail recouvre l'arbre ; le fermer y ramène. */

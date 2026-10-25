@@ -191,13 +191,17 @@ describe('détail d\'une tâche', () => {
     expect(document.activeElement?.querySelector('.name')?.textContent).toBe('Contrat de maintenance 2027')
   })
 
-  it('se ferme avec Échap', async () => {
+  it('se ferme avec Échap, où que soit le focus', async () => {
     const wrapper = await openApp('/projets/1/taches/20')
 
     await row(wrapper, 'Contrat de maintenance 2027').trigger('keydown', { key: 'Escape' })
     await expectNavigatedTo('/projets/1')
-
     expect(panel(wrapper).exists()).toBe(false)
+
+    await row(wrapper, 'Contrat de maintenance 2027').trigger('click')
+    await expectNavigatedTo('/projets/1/taches/20')
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await expectNavigatedTo('/projets/1')
   })
 
   it('dit quand la tâche est introuvable ou inaccessible, sans fermer l\'arbre', async () => {
@@ -211,6 +215,18 @@ describe('détail d\'une tâche', () => {
     expect(panel(wrapper).find('[role="alert"]').text()).toContain('introuvable ou inaccessible')
     expect(panel(wrapper).find('h2').exists()).toBe(false)
     expect(wrapper.find('[role="tree"]').exists()).toBe(true)
+  })
+
+  it('affiche un refus d\'OP sans proposer de réessayer', async () => {
+    fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
+    fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+    fakeApi.on('GET', '/tasks/20', () => {
+      throw new ApiError(403, 'op_forbidden')
+    })
+    const wrapper = await mountApp('/projets/1/taches/20')
+
+    expect(panel(wrapper).find('[role="alert"]').text()).toContain('OpenProject refuse l\'accès à cette tâche')
+    expect(panel(wrapper).findAll('button').map(button => button.text())).not.toContain('Réessayer')
   })
 
   it('mène à la page introuvable pour un identifiant de tâche invalide, sans appeler l\'API', async () => {

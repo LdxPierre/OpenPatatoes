@@ -57,7 +57,7 @@ const virtualizer = useWindowVirtualizer(computed(() => {
   }
 }))
 
-const mounted = ref(false)
+const listMeasured = ref(false)
 
 onMounted(() => {
   if (!list.value)
@@ -66,7 +66,7 @@ onMounted(() => {
   const rootSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
   if (rootSize > 0)
     rowHeight.value = rootSize * 2
-  mounted.value = true
+  listMeasured.value = true
   revealSelected()
 })
 
@@ -80,7 +80,7 @@ async function revealSelected() {
   for (const ancestor of path.slice(0, -1))
     expanded.add(ancestor.id)
   activeId.value = props.selectedId
-  if (!mounted.value)
+  if (!listMeasured.value)
     return
   // Le virtualiseur prend en compte les lignes dépliées au rendu suivant.
   await nextTick()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OpErrorMessages } from '@/shared/api/op-error'
+import { useMediaQuery } from '@vueuse/core'
 import { computed, nextTick, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
@@ -16,6 +17,10 @@ const props = defineProps<{
 
 const router = useRouter()
 const tree = useTemplateRef('tree')
+
+/** Sur petit écran, le détail recouvre l'arbre, qui ne doit plus recevoir le focus. */
+const narrow = useMediaQuery('(max-width: 760px)')
+const detailCovers = computed(() => narrow.value && props.taskId !== null)
 
 function openTask(taskId: number) {
   if (taskId !== props.taskId) {
@@ -91,8 +96,8 @@ const taskErrorMessages: OpErrorMessages = {
         <span v-if="countText" class="count op-num">{{ countText }}</span>
       </div>
 
-      <div class="workspace" :class="{ 'with-detail': taskId !== null }" @keydown.esc="closeTask">
-        <div class="tasks">
+      <div class="workspace" :class="{ 'with-detail': taskId !== null }">
+        <div class="tasks" :inert="detailCovers">
           <p v-if="tasks.isPending.value" class="muted" role="status">
             Chargement des tâches…
           </p>
@@ -120,7 +125,7 @@ const taskErrorMessages: OpErrorMessages = {
           />
         </div>
 
-        <RouterView @close="closeTask" />
+        <RouterView :covering="detailCovers" @close="closeTask" />
       </div>
     </template>
   </main>
