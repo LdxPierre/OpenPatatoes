@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { hashPassword } from '../src/auth/password.js'
 import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { users } from '../src/db/schema.js'
-import { buildTestApp, connectAs } from './support/app.js'
+import { buildTestApp, connectAs, loginAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
 import { startFakeOp } from './support/fake-op.js'
 
@@ -35,14 +35,6 @@ describe('projets', () => {
     await op.close()
     await db.$client.end()
   })
-
-  async function loginAs(account: { username: string, password: string }): Promise<string> {
-    const response = await app.inject({ method: 'POST', url: '/api/auth/login', payload: account })
-    const cookie = response.cookies.find(c => c.name === SESSION_COOKIE)
-    if (!cookie)
-      throw new Error('cookie de session absent')
-    return cookie.value
-  }
 
   function get(session: string, url: string) {
     return app.inject({
@@ -218,7 +210,7 @@ describe('projets', () => {
     })
 
     it('signale l\'absence de jeton OP', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       const response = await get(session, '/api/projects')
 

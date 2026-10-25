@@ -1,3 +1,4 @@
+import type { TaskDetail } from '@openpatatoes/shared'
 import { z } from 'zod'
 import { isoDurationToHours } from './duration.js'
 
@@ -54,15 +55,21 @@ const opOptionalLinkSchema = z
     ? link
     : null))
 
-export const opWorkPackageSchema = z
-  .object({
-    _type: z.literal('WorkPackage'),
-    id: z.number().int(),
-    subject: z.string(),
-    _links: z.object({
+/** Champs communs à la tâche lue en liste et en détail. */
+const opWorkPackageBaseSchema = z.object({
+  _type: z.literal('WorkPackage'),
+  id: z.number().int(),
+  subject: z.string(),
+  _links: z.object({
+    parent: opOptionalLinkSchema,
+  }),
+})
+
+export const opWorkPackageSchema = opWorkPackageBaseSchema
+  .extend({
+    _links: opWorkPackageBaseSchema.shape._links.extend({
       status: opResourceLinkSchema,
       assignee: opOptionalLinkSchema,
-      parent: opOptionalLinkSchema,
     }),
   })
   .transform(({ id, subject, _links }) => ({
@@ -106,14 +113,10 @@ const opDurationAsHoursSchema = z
  * Tâche lue pour son détail. Schéma distinct de la liste : une durée inexploitable
  * sur une tâche ne doit pas faire échouer l'arbre de tout le projet.
  */
-export const opWorkPackageDetailSchema = z
-  .object({
-    _type: z.literal('WorkPackage'),
-    id: z.number().int(),
-    subject: z.string(),
+export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
+  .extend({
     estimatedTime: opDurationAsHoursSchema,
     remainingTime: opDurationAsHoursSchema,
-    _links: z.object({ parent: opOptionalLinkSchema }),
   })
   .transform(({ id, subject, estimatedTime, remainingTime, _links }) => ({
     id,
@@ -121,7 +124,7 @@ export const opWorkPackageDetailSchema = z
     estimatedHours: estimatedTime,
     remainingHours: remainingTime,
     parent: _links.parent && { id: _links.parent.id, subject: _links.parent.name },
-  }))
+  }) satisfies TaskDetail)
 
 export type OpWorkPackageDetail = z.output<typeof opWorkPackageDetailSchema>
 

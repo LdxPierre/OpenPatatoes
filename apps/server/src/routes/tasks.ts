@@ -1,3 +1,4 @@
+import type { TaskDetailResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import { currentUserId, requireSession } from '../auth/plugin.js'
@@ -18,7 +19,7 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api => api.getWorkPackage(params.data.id))
       return result.match(
-        task => ({ task }),
+        task => ({ task }) satisfies TaskDetailResponse,
         error => sendOpRouteError(reply, error),
       )
     })

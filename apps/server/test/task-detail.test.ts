@@ -88,8 +88,9 @@ describe('détail d\'une tâche', () => {
     ['PT90M', 1.5],
     ['PT1.5H', 1.5],
     ['PT0,25H', 0.25],
-    ['PT20M', 1 / 3],
-    ['PT1H0M36S', 1.01],
+    ['PT20M', 20 / 60],
+    ['PT1H0M36S', 1 + 36 / 3600],
+    ['PT1H0,5M', 1 + 0.5 / 60],
     // OP 17 compte 24 h par jour : 26 h sont émises en `P1DT2H`.
     ['P1DT2H', 26],
     ['P1W', 168],
@@ -106,8 +107,8 @@ describe('détail d\'une tâche', () => {
 
     expect(response.statusCode).toBe(200)
     const { estimatedHours, remainingHours } = response.json().task
-    expect(estimatedHours).toBeCloseTo(hours, 10)
-    expect(remainingHours).toBeCloseTo(hours, 10)
+    expect(estimatedHours).toBe(hours)
+    expect(remainingHours).toBe(hours)
   })
 
   it.each([
@@ -119,6 +120,10 @@ describe('détail d\'une tâche', () => {
     'PTH',
     'P1DT',
     '-PT1H',
+    // Seule la dernière composante peut être décimale.
+    'PT1.5H30M',
+    // Les semaines ne se combinent pas avec d'autres composantes.
+    'P1W2D',
   ])('rejette la durée OP non exploitable %s', async (duration) => {
     op.addWorkPackage({
       id: 10,

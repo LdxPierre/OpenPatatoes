@@ -48,6 +48,34 @@ export const taskTreeResponseSchema = z.object({
 
 export type TaskTreeResponse = z.infer<typeof taskTreeResponseSchema>
 
+/** Tâche désignée par son identifiant et son titre : de quoi en afficher un lien. */
+export const taskRefSchema = z.object({
+  id: z.number().int(),
+  subject: z.string(),
+})
+
+export type TaskRef = z.infer<typeof taskRefSchema>
+
+/**
+ * Détail d'une tâche. Les durées sont en heures décimales, sans arrondi (l'interface
+ * arrondit à l'affichage), et valent `null` si elles ne sont pas renseignées.
+ * `parent` vaut `null` pour une tâche racine ou un parent invisible avec le jeton.
+ */
+export const taskDetailSchema = taskRefSchema.extend({
+  estimatedHours: z.number().nullable(),
+  remainingHours: z.number().nullable(),
+  parent: taskRefSchema.nullable(),
+})
+
+export type TaskDetail = z.infer<typeof taskDetailSchema>
+
+/** Réponse de `GET /api/tasks/:id`. */
+export const taskDetailResponseSchema = z.object({
+  task: taskDetailSchema,
+})
+
+export type TaskDetailResponse = z.infer<typeof taskDetailResponseSchema>
+
 /**
  * Visite chaque tâche des arbres donnés, à tous les niveaux. Le parcours est itératif :
  * une hiérarchie profonde ne fait pas déborder la pile.
