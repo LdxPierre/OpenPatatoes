@@ -71,10 +71,8 @@ const pendingFields = usePendingTaskFields(() => props.taskId)
 const failedFields = computed(() => Object.keys(failure.value?.variables.edit ?? {}) as (keyof TaskEdit)[])
 const rejection = computed(() => failure.value && taskRejection(failure.value.error))
 
-/** Champs qu'OP vient de refuser : ils sont revenus à l'état réel. */
-const rejectedFields = computed(() => new Set<string>(rejection.value
-  ? failedFields.value
-  : []))
+/** Champs dont la modification a échoué : ils sont revenus à l'état réel. */
+const rejectedFields = computed(() => new Set<string>(failedFields.value))
 
 const fieldNames: Record<keyof TaskEdit, string> = {
   estimatedHours: 'le temps estimé',
@@ -87,7 +85,7 @@ const editErrorMessages = computed<OpErrorMessages>(() => {
   return {
     // Le message d'un refus vient d'OP, qui nomme le champ en cause.
     fallback: rejection.value?.message ?? `L'app n'a pas pu modifier ${what}. Réessayez dans un instant.`,
-    forbidden: `OpenProject ne vous permet pas de modifier ${what} de cette tâche.`,
+    forbidden: `OpenProject ne vous permet pas de modifier ${what} de cette tâche. Demandez ce droit à un administrateur du projet dans OpenProject.`,
     notFound: errorMessages.notFound,
   }
 })

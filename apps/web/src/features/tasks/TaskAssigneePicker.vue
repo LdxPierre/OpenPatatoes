@@ -68,7 +68,7 @@ function choose(value: unknown) {
           Chargement des membres du projet…
         </p>
         <p v-else-if="assignees.isError.value" class="note" role="alert">
-          La liste des membres n'a pas pu être lue.
+          L'app n'a pas pu lire les membres du projet dans OpenProject.
           <button type="button" class="retry" @click="assignees.refetch()">
             Réessayer
           </button>
