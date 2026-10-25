@@ -21,7 +21,7 @@ Implémentez le travail et commitez-le sur la branche.
 
 ## 3. Valider
 
-Lancez depuis la racine `pnpm lint:fix` (lint et formatage), puis `pnpm lint`, `pnpm typecheck`, `pnpm test` et `pnpm test:e2e`. Les tests du serveur ont besoin de PostgreSQL, et les tests de bout en bout du navigateur de Playwright (voir le README). L'étape est terminée quand ces quatre commandes passent sans erreur ni avertissement.
+Lancez depuis la racine `pnpm lint:fix` (lint et formatage), puis `pnpm lint`, `pnpm typecheck`, `pnpm test` et `pnpm test:e2e`. Les tests du serveur et les tests de bout en bout ont besoin de PostgreSQL, ces derniers aussi du navigateur de Playwright (voir le README). L'étape est terminée quand ces quatre commandes passent sans erreur ni avertissement.
 
 `pnpm lint:fix` reformate aussi `spec.yaml`, la copie de la spec OpenAPI d'OpenProject, et `pnpm lint` y signale des erreurs. Ignorez-les et restaurez le fichier avec `git restore spec.yaml`, sauf si le travail porte sur la spec.
 

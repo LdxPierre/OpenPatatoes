@@ -8,7 +8,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@openpatatoes/shared": "workspace:*",
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "typescript": "~5.9.3"

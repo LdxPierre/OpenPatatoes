@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
@@ -15,6 +16,7 @@ export default defineConfig({
   },
   server: {
     // Même origine que l'API : pas de CORS, et le cookie de session passe tel quel.
-    proxy: { '/api': 'http://localhost:3000' },
+    // `API_URL` sert aux tests de bout en bout, qui lancent leur propre serveur.
+    proxy: { '/api': process.env.API_URL ?? 'http://localhost:3000' },
   },
 })

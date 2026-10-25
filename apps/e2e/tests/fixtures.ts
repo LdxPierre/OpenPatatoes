@@ -1,46 +1,45 @@
 import type { Page } from '@playwright/test'
-import { test as base } from '@playwright/test'
-
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-
-/** Réponse simulée d'une route de l'API. */
-interface MockResponse {
-  status?: number
-  body?: unknown
-}
+import { test as base, expect } from '@playwright/test'
 
 /**
- * Simule l'API (`/api/...`) dans le navigateur, sans serveur ni OpenProject.
- * Les routes sont filtrées sur le chemin : un glob `**\/api/**` capterait aussi les modules Vite de `src/shared/api/`.
+ * État de départ d'un test, appliqué par le serveur e2e (`apps/server/test/e2e/server.ts`).
+ * Les utilisateurs OP reçoivent les identifiants 1, 2… dans l'ordre : `memberIds` s'y réfère.
  */
-export class ApiMock {
-  constructor(private readonly page: Page) {}
-
-  /** Toute route non simulée répond 404 : un test ne dépend jamais d'un vrai serveur. */
-  async init() {
-    await this.page.route(url => url.pathname.startsWith('/api/'), route =>
-      route.fulfill({
-        status: 404,
-        json: { error: 'not_mocked' },
-      }))
-  }
-
-  /** Simule `method path`. La dernière simulation d'une route l'emporte. */
-  async on(method: HttpMethod, path: string, { status = 200, body = {} }: MockResponse = {}) {
-    await this.page.route(url => url.pathname === `/api${path}`, async (route) => {
-      if (route.request().method() !== method)
-        return route.fallback()
-      await route.fulfill({ status, json: body })
-    })
+export interface Scenario {
+  accounts?: Array<Account & { isAdmin?: boolean, opToken?: string }>
+  op?: {
+    users?: Array<{ name: string, token: string }>
+    projects?: Array<{ id: number, identifier: string, name: string, memberIds: number[] }>
+    workPackages?: Array<{ id: number, projectId: number, subject: string, parentId?: number | null }>
   }
 }
 
-export const test = base.extend<{ api: ApiMock }>({
-  api: async ({ page }, use) => {
-    const api = new ApiMock(page)
-    await api.init()
-    await use(api)
-  },
+export interface Account {
+  username: string
+  password: string
+}
+
+export const test = base.extend<{ scenario: Scenario, resetStack: void }>({
+  scenario: [
+    {},
+    { option: true },
+  ],
+  // Avant chaque test, la base et le faux OP repartent du scénario déclaré par `test.use`.
+  resetStack: [
+    async ({ request, scenario }, use) => {
+      const response = await request.post('/api/__e2e/reset', { data: scenario })
+      expect(response.status()).toBe(204)
+      await use()
+    },
+    { auto: true },
+  ],
 })
 
-export { expect } from '@playwright/test'
+export async function signIn(page: Page, { username, password }: Account) {
+  await page.goto('/connexion')
+  await page.getByLabel('Identifiant').fill(username)
+  await page.getByLabel('Mot de passe').fill(password)
+  await page.getByRole('button', { name: 'Se connecter' }).click()
+}
+
+export { expect }

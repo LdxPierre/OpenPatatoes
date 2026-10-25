@@ -9,8 +9,8 @@ export default antfu(
     ignores: ['apps/server/drizzle/meta/**'],
   },
   {
-    // Point d'entrée du serveur : le démarrage attend la base puis l'écoute.
-    files: ['apps/server/src/index.ts'],
+    // Points d'entrée du serveur : le démarrage attend la base puis l'écoute.
+    files: ['apps/server/src/index.ts', 'apps/server/test/e2e/server.ts'],
     rules: { 'antfu/no-top-level-await': 'off' },
   },
 )

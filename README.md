@@ -36,6 +36,6 @@ pnpm test:e2e
 pnpm --filter @openpatatoes/e2e exec playwright test --ui          # mode interactif
 ```
 
-Ils lancent le front sur le port 5174 et simulent l'API dans le navigateur : ni serveur, ni PostgreSQL, ni OpenProject.
+Ils lancent le front (port 5174) et le serveur (port 3100), sur la base `openpatatoes_e2e` du PostgreSQL de Docker, recréée à chaque lancement. Le serveur parle au faux OpenProject des tests d'intégration : pas besoin d'instance OP. Chaque test déclare son jeu de données avec `test.use({ scenario })` (voir `apps/e2e/tests/fixtures.ts`).
 
 Pour la méthode de travail (branches, validation, relecture), voir [CONTRIBUTING.md](CONTRIBUTING.md).
