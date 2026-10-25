@@ -130,6 +130,21 @@ describe('détail d\'une tâche', () => {
     expect(response.json().task.status).toEqual({ id: FAKE_STATUSES.delivered.id, name: 'Delivered', isClosed: true })
   })
 
+  it('reste lisible quand OP ne donne pas la liste des statuts, l\'état étant alors traité comme ouvert', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Tâche',
+      statusId: FAKE_STATUSES.closed.id,
+    })
+    op.interceptNext({ path: '/api/v3/statuses', status: 503 })
+
+    const response = await getTask(10)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().task.status).toEqual({ id: FAKE_STATUSES.closed.id, name: 'Closed', isClosed: false })
+  })
+
   it('prend la date d\'un jalon comme début et comme échéance', async () => {
     op.addWorkPackage({
       id: 10,

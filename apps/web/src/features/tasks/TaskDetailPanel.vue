@@ -57,14 +57,41 @@ const hours = computed(() => {
   ]
 })
 
-interface Field {
+interface FieldValue {
   label: string
   value: string
   /** Infobulle : la valeur complète quand l'affichage est abrégé. */
   title?: string
-  hint?: { text: string, overdue: boolean }
+  hint?: ReturnType<typeof dueHint>
+}
+
+interface Field extends FieldValue {
   /** Les valeurs longues prennent toute la largeur ; les courtes vont par deux. */
   column: 'wide' | 'left' | 'right'
+}
+
+function named(label: string, ref: { name: string } | null): FieldValue | null {
+  return ref && { label, value: ref.name }
+}
+
+function wide(field: FieldValue | null): Field[] {
+  return field
+    ? [
+        { ...field, column: 'wide' },
+      ]
+    : []
+}
+
+/** Deux valeurs courtes côte à côte ; seule, une valeur reste dans la colonne de gauche. */
+function pair(left: FieldValue | null, right: FieldValue | null): Field[] {
+  return [left, right]
+    .filter(field => field !== null)
+    .map((field, index) => ({
+      ...field,
+      column: index === 0
+        ? 'left'
+        : 'right',
+    }))
 }
 
 /** Propriétés renseignées, dans l'ordre d'affichage. Une propriété vide n'est pas affichée. */
@@ -72,89 +99,50 @@ const fields = computed<Field[]>(() => {
   const task = detail.data.value
   if (!task)
     return []
-  const due = task.dueDate && !task.status.isClosed
+  // Une tâche fermée n'a plus d'échéance à tenir : pas d'indication relative.
+  const hint = task.dueDate && !task.status.isClosed
     ? dueHint(task.dueDate)
     : undefined
-  const pair = (left?: Omit<Field, 'column'>, right?: Omit<Field, 'column'>): Field[] => [
-    ...(left
-      ? [
-          { ...left, column: 'left' as const },
-        ]
-      : []),
-    ...(right
-      ? [
-          {
-            ...right,
-            column: left ? 'right' as const : 'left' as const,
-          },
-        ]
-      : []),
-  ]
   return [
-    ...(task.responsible
-      ? [
-          { label: 'Responsable', value: task.responsible.name, column: 'wide' as const },
-        ]
-      : []),
-    ...datesField(task.startDate, task.dueDate, due),
-    ...pair(
-      { label: 'Type', value: task.type.name },
-      task.priority
-        ? { label: 'Priorité', value: task.priority.name }
-        : undefined,
-    ),
-    ...(task.version
-      ? [
-          { label: 'Version', value: task.version.name, column: 'wide' as const },
-        ]
-      : []),
-    ...(task.category
-      ? [
-          { label: 'Catégorie', value: task.category.name, column: 'wide' as const },
-        ]
-      : []),
+    ...wide(named('Responsable', task.responsible)),
+    ...wide(datesField(task.startDate, task.dueDate, hint)),
+    ...pair(named('Type', task.type), named('Priorité', task.priority)),
+    ...wide(named('Version', task.version)),
+    ...wide(named('Catégorie', task.category)),
   ]
 })
 
 /** Début et échéance sur une ligne : « 6 oct. → 31 oct. », suivie de l'échéance relative. */
-function datesField(start: string | null, due: string | null, hint: Field['hint']): Field[] {
-  if (start && due) {
-    return [
-      {
-        label: 'Dates',
-        value: `${formatDay(start)} → ${formatDay(due)}`,
-        title: `Du ${formatFullDay(start)} au ${formatFullDay(due)}`,
-        hint,
-        column: 'wide',
-      },
-    ]
+function datesField(start: string | null, due: string | null, hint: FieldValue['hint']): FieldValue | null {
+  // Un jalon a la même date de début et d'échéance : seule l'échéance compte.
+  if (start && due && start !== due) {
+    return {
+      label: 'Dates',
+      value: `${formatDay(start)} → ${formatDay(due)}`,
+      title: `Du ${formatFullDay(start)} au ${formatFullDay(due)}`,
+      hint,
+    }
   }
   if (due) {
-    return [
-      {
-        label: 'Échéance',
-        value: formatDay(due),
-        title: formatFullDay(due),
-        hint,
-        column: 'wide',
-      },
-    ]
+    return {
+      label: 'Échéance',
+      value: formatDay(due),
+      title: formatFullDay(due),
+      hint,
+    }
   }
   if (start) {
-    return [
-      {
-        label: 'Début',
-        value: formatDay(start),
-        title: formatFullDay(start),
-        column: 'wide',
-      },
-    ]
+    return {
+      label: 'Début',
+      value: formatDay(start),
+      title: formatFullDay(start),
+    }
   }
-  return []
+  return null
 }
 
 const subtasks = computed(() => preview.value?.children ?? [])
-const closedSubtasks = computed(() => {
+const closedSubtasksText = computed(() => {
   const closed = subtasks.value.filter(child => child.status.isClosed).length
   return `${closed} sur ${subtasks.value.length} ${closed > 1
     ? 'fermées'
@@ -247,7 +235,7 @@ const errorMessages: OpErrorMessages = {
 
       <section v-if="subtasks.length" class="section" aria-labelledby="subtasks-title">
         <h3 id="subtasks-title">
-          Sous-tâches <span class="count op-num">{{ closedSubtasks }}</span>
+          Sous-tâches <span class="count op-num">{{ closedSubtasksText }}</span>
         </h3>
         <ul class="subtasks">
           <li v-for="child in subtasks" :key="child.id">

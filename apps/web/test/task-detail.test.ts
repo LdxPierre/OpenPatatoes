@@ -212,6 +212,23 @@ describe('détail d\'une tâche', () => {
     ])
   })
 
+  it('n\'affiche que l\'échéance d\'un jalon, dont le début et l\'échéance sont le même jour', async () => {
+    const day = `${new Date().getFullYear()}-11-15`
+    details[33] = detail({
+      id: 33,
+      subject: 'Mise en production',
+      startDate: day,
+      dueDate: day,
+    })
+    const wrapper = await openApp('/projets/1/taches/33')
+
+    expect(fields(wrapper)[0]).toEqual([
+      'Échéance',
+      expect.stringMatching(/^15 nov\./),
+    ])
+    delete details[33]
+  })
+
   it('situe l\'échéance par rapport à aujourd\'hui, et signale un retard', async () => {
     details[31] = detail({
       id: 31,
