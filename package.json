@@ -10,6 +10,7 @@
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
+    "test:e2e": "pnpm --filter @openpatatoes/e2e test:e2e",
     "typecheck": "pnpm -r run typecheck",
     "db:generate": "pnpm --filter @openpatatoes/server run db:generate",
     "db:migrate": "pnpm --filter @openpatatoes/server run db:migrate",

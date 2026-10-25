@@ -28,4 +28,14 @@ pnpm typecheck
 pnpm test        # tests du serveur, PostgreSQL doit tourner
 ```
 
+Tests de bout en bout (Playwright, dans `apps/e2e`) :
+
+```sh
+pnpm --filter @openpatatoes/e2e exec playwright install chromium   # une fois
+pnpm test:e2e
+pnpm --filter @openpatatoes/e2e exec playwright test --ui          # mode interactif
+```
+
+Ils lancent le front sur le port 5174 et simulent l'API dans le navigateur : ni serveur, ni PostgreSQL, ni OpenProject.
+
 Pour la méthode de travail (branches, validation, relecture), voir [CONTRIBUTING.md](CONTRIBUTING.md).

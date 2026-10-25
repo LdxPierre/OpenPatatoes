@@ -1,0 +1,16 @@
+{
+  "name": "@openpatatoes/e2e",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@openpatatoes/shared": "workspace:*",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "typescript": "~5.9.3"
+  }
+}
