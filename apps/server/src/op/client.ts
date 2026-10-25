@@ -139,8 +139,8 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             : 'requête impossible'),
         )
           .andThen((response) => {
-            // Un 422 porte les raisons du refus : l'utilisateur peut corriger sa saisie.
-            if (response.status === 422) {
+            // Un 422 sur une écriture porte les raisons du refus : l'utilisateur peut corriger sa saisie.
+            if (response.status === 422 && method !== 'GET') {
               return readJson(response)
                 .andThen(error => parse(error, label, opRejectionSchema))
                 .andThen(reasons => errAsync(new OpRejectedError(reasons)))

@@ -16,7 +16,7 @@ import { idParamsSchema } from './params.js'
  * d'une tâche ne le dit pas, seuls les statuts le donnent. Sans eux, la tâche reste
  * lisible : son état est alors traité comme ouvert.
  */
-function taskDetail(api: OpApi, workPackage: ResultAsync<OpWorkPackageDetail, OpError>): ResultAsync<TaskDetail, OpError> {
+function withClosedStatus(api: OpApi, workPackage: ResultAsync<OpWorkPackageDetail, OpError>): ResultAsync<TaskDetail, OpError> {
   return ResultAsync.combine([
     workPackage,
     api.listStatuses().orElse(() => okAsync([])),
@@ -41,7 +41,7 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
         return reply.code(400).send({ error: 'invalid_request' })
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
-        taskDetail(api, api.getWorkPackage(params.data.id)),
+        withClosedStatus(api, api.getWorkPackage(params.data.id)),
       )
       return result.match(
         task => ({ task }) satisfies TaskDetailResponse,
@@ -64,14 +64,14 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       if (api.isErr())
         return sendOpRouteError(reply, api.error)
 
-      const updated = await taskDetail(api.value, api.value.updateWorkPackage(id, changes.data))
+      const updated = await withClosedStatus(api.value, api.value.updateWorkPackage(id, changes.data))
       if (updated.isOk())
         return { task: updated.value } satisfies TaskDetailResponse
       if (updated.error._tag !== 'OpRejected')
         return sendOpRouteError(reply, updated.error)
 
       // Sans relecture possible, le refus reste signalé ; l'interface rechargera la tâche.
-      const current = await taskDetail(api.value, api.value.getWorkPackage(id))
+      const current = await withClosedStatus(api.value, api.value.getWorkPackage(id))
       if (current.isErr())
         return sendOpRouteError(reply, updated.error)
       return reply.code(422).send({
