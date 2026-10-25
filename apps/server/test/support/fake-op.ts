@@ -477,6 +477,14 @@ export async function startFakeOp(): Promise<FakeOp> {
         return constraintViolation(reply, 'status', 'Status is invalid because no valid transition exists.')
       }
 
+      const assigneeHref = body._links?.assignee?.href
+      if (assigneeHref) {
+        const project = state.projects.find(candidate => candidate.id === workPackage.projectId)
+        const assigneeId = idFromHref(assigneeHref)
+        if (!project?.memberIds.includes(assigneeId ?? -1) || !state.users.some(user => user.id === assigneeId))
+          return constraintViolation(reply, 'assignee', 'Assignee is not set to one of the allowed values.')
+      }
+
       if (body.subject !== undefined)
         workPackage.subject = body.subject
       if (body.estimatedTime !== undefined)
@@ -493,6 +501,19 @@ export async function startFakeOp(): Promise<FakeOp> {
       workPackage.lockVersion += 1
 
       return workPackageResource(workPackage)
+    },
+  )
+
+  /** Comme OP, seuls les membres du projet de la tâche peuvent en être assignés. */
+  app.get<{ Params: { id: string }, Querystring: CollectionQuery }>(
+    '/api/v3/work_packages/:id/available_assignees',
+    async (request, reply) => {
+      const workPackage = accessibleWorkPackage(request, reply, Number(request.params.id))
+      if (!workPackage)
+        return reply
+      const project = state.projects.find(candidate => candidate.id === workPackage.projectId)
+      const assignees = state.users.filter(user => project?.memberIds.includes(user.id)).map(userResource)
+      return paginatedCollection(assignees, request.query, `/api/v3/work_packages/${workPackage.id}/available_assignees`)
     },
   )
 

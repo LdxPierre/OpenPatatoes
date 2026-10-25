@@ -64,8 +64,10 @@ export type TaskRef = z.infer<typeof taskRefSchema>
  * `spentHours` vaut aussi `null` si le jeton n'a pas le droit de voir le temps passé.
  * Les dates sont des jours au format ISO (`2026-10-31`), sans heure.
  * `parent` vaut `null` pour une tâche racine ou un parent invisible avec le jeton.
+ * `lockVersion` est la version de la tâche dans OP, à renvoyer avec chaque modification.
  */
 export const taskDetailSchema = taskRefSchema.extend({
+  lockVersion: z.number().int(),
   status: taskStatusSchema,
   type: opNamedRefSchema,
   priority: opNamedRefSchema.nullable(),
@@ -83,12 +85,69 @@ export const taskDetailSchema = taskRefSchema.extend({
 
 export type TaskDetail = z.infer<typeof taskDetailSchema>
 
-/** Réponse de `GET /api/tasks/:id`. */
+/** Réponse de `GET` et `PATCH /api/tasks/:id` : après une modification, la tâche telle qu'OP l'a enregistrée. */
 export const taskDetailResponseSchema = z.object({
   task: taskDetailSchema,
 })
 
 export type TaskDetailResponse = z.infer<typeof taskDetailResponseSchema>
+
+/** Plus petite durée non nulle acceptée : une seconde. */
+export const TASK_HOURS_MIN = 1 / 3600
+/** Plus grande durée acceptée. Au-delà, le temps d'une tâche n'a plus de sens. */
+export const TASK_HOURS_MAX = 100_000
+
+/**
+ * Temps saisi en heures décimales ; `null` efface la valeur dans OP.
+ * Hors de `0` et de [`TASK_HOURS_MIN`, `TASK_HOURS_MAX`], la durée ISO 8601 écrite
+ * vers OP ne relirait plus la même valeur.
+ */
+const taskHoursSchema = z
+  .number()
+  .refine(hours => hours === 0 || (hours >= TASK_HOURS_MIN && hours <= TASK_HOURS_MAX), 'durée hors limites')
+  .nullable()
+  .optional()
+
+/**
+ * Corps de `PATCH /api/tasks/:id`. Un champ absent reste inchangé, `null` le vide ;
+ * au moins un champ doit être modifié. `lockVersion` est celui de la tâche lue :
+ * OP refuse l'écriture si la tâche a changé depuis.
+ */
+export const taskChangesSchema = z
+  .strictObject({
+    lockVersion: z.number().int().nonnegative(),
+    estimatedHours: taskHoursSchema,
+    remainingHours: taskHoursSchema,
+    assigneeId: z.number().int().positive().nullable().optional(),
+  })
+  .refine(
+    ({ estimatedHours, remainingHours, assigneeId }) =>
+      [estimatedHours, remainingHours, assigneeId].some(value => value !== undefined),
+    'aucun champ à modifier',
+  )
+
+export type TaskChanges = z.infer<typeof taskChangesSchema>
+
+/**
+ * Réponse 422 de `PATCH /api/tasks/:id` quand OP refuse la modification. `message` reprend
+ * celui d'OP. `task` est l'état réel de la tâche, pour annuler l'affichage optimiste ;
+ * il manque si la tâche n'a pas pu être relue. Le code `op_token_invalid` partage ce statut :
+ * c'est `error` qui distingue les deux.
+ */
+export const taskRejectedResponseSchema = z.object({
+  error: z.literal('op_rejected'),
+  message: z.string(),
+  task: taskDetailSchema.optional(),
+})
+
+export type TaskRejectedResponse = z.infer<typeof taskRejectedResponseSchema>
+
+/** Réponse de `GET /api/tasks/:id/assignees` : les utilisateurs à qui la tâche peut être assignée. */
+export const taskAssigneesResponseSchema = z.object({
+  assignees: z.array(opNamedRefSchema),
+})
+
+export type TaskAssigneesResponse = z.infer<typeof taskAssigneesResponseSchema>
 
 /**
  * Visite chaque tâche des arbres donnés, à tous les niveaux. Le parcours est itératif :
