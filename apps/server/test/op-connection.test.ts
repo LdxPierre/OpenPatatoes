@@ -7,7 +7,7 @@ import { hashPassword } from '../src/auth/password.js'
 import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { loadConfig } from '../src/config.js'
 import { opConnections, users } from '../src/db/schema.js'
-import { buildTestApp } from './support/app.js'
+import { buildTestApp, loginAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
 import { startFakeOp } from './support/fake-op.js'
 
@@ -35,14 +35,6 @@ describe('jeton OP', () => {
     await op.close()
     await db.$client.end()
   })
-
-  async function loginAs(account: { username: string, password: string }): Promise<string> {
-    const response = await app.inject({ method: 'POST', url: '/api/auth/login', payload: account })
-    const cookie = response.cookies.find(c => c.name === SESSION_COOKIE)
-    if (!cookie)
-      throw new Error('cookie de session absent')
-    return cookie.value
-  }
 
   function saveToken(session: string, token: unknown) {
     return app.inject({
@@ -76,7 +68,7 @@ describe('jeton OP', () => {
   describe('saisie', () => {
     it('accepte un jeton valide et renvoie l\'utilisateur OP correspondant', async () => {
       const opAlice = op.addUser({ name: 'Alice Martin', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       const response = await saveToken(session, 'tok-alice')
 
@@ -87,7 +79,7 @@ describe('jeton OP', () => {
     })
 
     it('refuse un jeton qu\'OP ne reconnaît pas, avec un message clair, sans rien stocker', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       const response = await saveToken(session, 'tok-inconnu')
 
@@ -100,7 +92,7 @@ describe('jeton OP', () => {
     })
 
     it('refuse un jeton vide ou absent', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       for (const token of ['', '   ', undefined, 42]) {
         const response = await saveToken(session, token)
@@ -110,7 +102,7 @@ describe('jeton OP', () => {
     })
 
     it('distingue OP indisponible d\'un jeton invalide', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       op.interceptNext({ path: '/api/v3/users/me', status: 503 })
 
       const response = await saveToken(session, 'tok-alice')
@@ -121,7 +113,7 @@ describe('jeton OP', () => {
     })
 
     it('rejette une réponse OP non conforme au schéma attendu', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       op.interceptNext({
         path: '/api/v3/users/me',
         status: 200,
@@ -150,7 +142,7 @@ describe('jeton OP', () => {
     it('ne conserve jamais le jeton en clair en base', async () => {
       const token = `tok-${randomBytes(16).toString('hex')}`
       op.addUser({ name: 'Alice', token })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       await saveToken(session, token)
 
@@ -164,7 +156,7 @@ describe('jeton OP', () => {
 
     it('relit le jeton stocké à l\'identique pour interroger OP', async () => {
       const opAlice = op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
 
       const response = await getConnection(session)
@@ -177,7 +169,7 @@ describe('jeton OP', () => {
 
     it('refuse un jeton altéré en base au lieu de l\'envoyer à OP', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
       const [row] = await storedRows()
       if (!row)
@@ -195,8 +187,8 @@ describe('jeton OP', () => {
 
     it('ne déchiffre pas le jeton d\'un utilisateur recopié sur un autre', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const aliceSession = await loginAs(alice)
-      const bobSession = await loginAs(bob)
+      const aliceSession = await loginAs(app, alice)
+      const bobSession = await loginAs(app, bob)
       await saveToken(aliceSession, 'tok-alice')
       const [aliceRow] = await storedRows()
       const [bobUser] = await db.select().from(users).where(eq(users.username, bob.username))
@@ -213,7 +205,7 @@ describe('jeton OP', () => {
 
   describe('remplacement et suppression', () => {
     it('indique qu\'aucun jeton n\'est enregistré', async () => {
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       const response = await getConnection(session)
 
@@ -224,7 +216,7 @@ describe('jeton OP', () => {
     it('utilise le nouveau jeton après un remplacement', async () => {
       op.addUser({ name: 'Ancien compte', token: 'tok-ancien' })
       const nouveau = op.addUser({ name: 'Nouveau compte', token: 'tok-nouveau' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-ancien')
 
       const replaced = await saveToken(session, 'tok-nouveau')
@@ -239,7 +231,7 @@ describe('jeton OP', () => {
 
     it('conserve l\'ancien jeton si le remplaçant est refusé', async () => {
       const ancien = op.addUser({ name: 'Ancien compte', token: 'tok-ancien' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-ancien')
 
       const replaced = await saveToken(session, 'tok-invalide')
@@ -253,7 +245,7 @@ describe('jeton OP', () => {
 
     it('n\'interroge plus OP après la suppression du jeton', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
 
       const deleted = await deleteConnection(session)
@@ -267,7 +259,7 @@ describe('jeton OP', () => {
 
     it('signale un jeton révoqué dans OP depuis sa saisie', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
       op.interceptNext({ path: '/api/v3/users/me', status: 401 })
 
@@ -294,7 +286,7 @@ describe('jeton OP', () => {
 
     it('indique l\'absence de jeton à la connexion et dans la session', async () => {
       const response = await login(alice)
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
 
       expect(response.json().user.opConnected).toBe(false)
       expect(await opConnected(session)).toBe(false)
@@ -302,7 +294,7 @@ describe('jeton OP', () => {
 
     it('indique un jeton enregistré, sans interroger OP', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
       op.interceptNext({ path: '/api/v3/users/me', status: 503 })
 
@@ -316,7 +308,7 @@ describe('jeton OP', () => {
 
     it('n\'indique plus de jeton après sa suppression', async () => {
       op.addUser({ name: 'Alice', token: 'tok-alice' })
-      const session = await loginAs(alice)
+      const session = await loginAs(app, alice)
       await saveToken(session, 'tok-alice')
 
       await deleteConnection(session)
@@ -326,9 +318,9 @@ describe('jeton OP', () => {
 
     it('ne tient compte que du jeton de l\'utilisateur courant', async () => {
       op.addUser({ name: 'Bob', token: 'tok-bob' })
-      await saveToken(await loginAs(bob), 'tok-bob')
+      await saveToken(await loginAs(app, bob), 'tok-bob')
 
-      expect(await opConnected(await loginAs(alice))).toBe(false)
+      expect(await opConnected(await loginAs(app, alice))).toBe(false)
     })
   })
 
@@ -336,8 +328,8 @@ describe('jeton OP', () => {
     it('interroge OP avec le jeton de l\'utilisateur courant uniquement', async () => {
       const opAlice = op.addUser({ name: 'Alice OP', token: 'tok-alice' })
       const opBob = op.addUser({ name: 'Bob OP', token: 'tok-bob' })
-      const aliceSession = await loginAs(alice)
-      const bobSession = await loginAs(bob)
+      const aliceSession = await loginAs(app, alice)
+      const bobSession = await loginAs(app, bob)
       await saveToken(aliceSession, 'tok-alice')
       await saveToken(bobSession, 'tok-bob')
 
@@ -355,8 +347,8 @@ describe('jeton OP', () => {
     it('ne touche pas le jeton des autres utilisateurs lors d\'une suppression', async () => {
       const opBob = op.addUser({ name: 'Bob OP', token: 'tok-bob' })
       op.addUser({ name: 'Alice OP', token: 'tok-alice' })
-      const aliceSession = await loginAs(alice)
-      const bobSession = await loginAs(bob)
+      const aliceSession = await loginAs(app, alice)
+      const bobSession = await loginAs(app, bob)
       await saveToken(aliceSession, 'tok-alice')
       await saveToken(bobSession, 'tok-bob')
 
