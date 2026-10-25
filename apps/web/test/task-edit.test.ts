@@ -1,0 +1,316 @@
+import type { TaskDetail, TaskNode } from '@openpatatoes/shared'
+import { flushPromises } from '@vue/test-utils'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { parseHours } from '@/features/tasks/format'
+import { withAssignee } from '@/features/tasks/tasks'
+import { ApiError } from '@/shared/api/api-fetch'
+import { fakeApi } from './support/fake-api'
+import { mountApp } from './support/mount-app'
+
+const camille = { id: 3, name: 'Camille Roux' }
+const bruno = { id: 4, name: 'Bruno Petit' }
+
+function node(id: number, subject: string, children: TaskNode[] = []): TaskNode {
+  return {
+    id,
+    subject,
+    status: { id: 1, name: 'Nouveau', isClosed: false },
+    assignee: null,
+    children,
+  }
+}
+
+const tree = [
+  node(10, 'Refonte du portail client', [
+    {
+      ...node(11, 'Parcours de connexion'),
+      assignee: camille,
+    },
+  ]),
+  node(20, 'Contrat de maintenance 2027'),
+]
+
+const stored: TaskDetail = {
+  id: 11,
+  subject: 'Parcours de connexion',
+  lockVersion: 4,
+  status: { id: 1, name: 'Nouveau', isClosed: false },
+  type: { id: 1, name: 'Tâche' },
+  priority: null,
+  assignee: camille,
+  responsible: null,
+  estimatedHours: 16,
+  remainingHours: 6,
+  spentHours: null,
+  startDate: null,
+  dueDate: null,
+  version: null,
+  category: null,
+  parent: { id: 10, subject: 'Refonte du portail client' },
+}
+
+/** Réponse d'OP tenue en attente : le test décide quand elle arrive. */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {}
+  let reject: (error: unknown) => void = () => {}
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+async function openTask() {
+  fakeApi.on('GET', '/projects/1', () => ({
+    project: { id: 1, identifier: 'alpha', name: 'Alpha' },
+  }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+  fakeApi.on('GET', '/tasks/11', () => ({ task: stored }))
+  return mountApp('/projets/1/taches/11')
+}
+
+type Wrapper = Awaited<ReturnType<typeof openTask>>
+
+function hourButton(wrapper: Wrapper, label: string) {
+  const button = wrapper.findAll('aside .hour button').find(item => item.attributes('aria-label')?.startsWith(`${label} :`))
+  if (!button)
+    throw new Error(`Heure absente : ${label}`)
+  return button
+}
+
+async function typeHours(wrapper: Wrapper, label: string, text: string) {
+  await hourButton(wrapper, label).trigger('click')
+  const input = wrapper.find('aside .hour input')
+  await input.setValue(text)
+  await input.trigger('keydown', { key: 'Enter' })
+}
+
+function treeAssignee(wrapper: Wrapper, subject: string) {
+  const row = wrapper.findAll('[role="treeitem"]').find(item => item.find('.name').text() === subject)
+  return row?.find('.assignee').text()
+}
+
+describe('modification d\'une tâche', () => {
+  beforeEach(() => {
+    fakeApi.signedIn()
+  })
+
+  it('affiche le nouveau temps avant la réponse d\'OP, puis la version enregistrée', async () => {
+    const wrapper = await openTask()
+    const answer = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => answer.promise)
+
+    await typeHours(wrapper, 'Restant', '2,5')
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Restant').text()).toBe('2,5 h')
+    expect(hourButton(wrapper, 'Restant').classes()).toContain('pending')
+    expect(fakeApi.calls.at(-1)).toMatchObject({
+      method: 'PATCH',
+      body: { lockVersion: 4, remainingHours: 2.5 },
+    })
+
+    answer.resolve({
+      task: { ...stored, remainingHours: 2.5, lockVersion: 5 },
+    })
+    await flushPromises()
+    expect(hourButton(wrapper, 'Restant').text()).toBe('2,5 h')
+    expect(hourButton(wrapper, 'Restant').classes()).not.toContain('pending')
+  })
+
+  it('envoie les modifications l\'une après l\'autre, chacune avec la version obtenue par la précédente', async () => {
+    const wrapper = await openTask()
+    const first = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => first.promise)
+
+    await typeHours(wrapper, 'Estimé', '20')
+    await flushPromises()
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: {
+        ...stored,
+        estimatedHours: 20,
+        remainingHours: 3,
+        lockVersion: 6,
+      },
+    }))
+    await typeHours(wrapper, 'Restant', '3')
+    await flushPromises()
+
+    // La seconde attend la première, et les deux valeurs restent affichées.
+    expect(fakeApi.calls.filter(call => call.method === 'PATCH')).toHaveLength(1)
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('20 h')
+    expect(hourButton(wrapper, 'Restant').text()).toBe('3 h')
+
+    first.resolve({
+      task: { ...stored, estimatedHours: 20, lockVersion: 5 },
+    })
+    await flushPromises()
+
+    expect(fakeApi.calls.filter(call => call.method === 'PATCH').map(call => call.body)).toEqual([
+      { lockVersion: 4, estimatedHours: 20 },
+      { lockVersion: 5, remainingHours: 3 },
+    ])
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('20 h')
+    expect(hourButton(wrapper, 'Restant').text()).toBe('3 h')
+  })
+
+  it('revient à l\'état réel et affiche le refus d\'OP', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(422, 'op_rejected', {
+        error: 'op_rejected',
+        message: 'OpenProject a refusé la modification : Le temps restant ne peut pas dépasser le temps estimé.',
+        // Un autre a modifié l'estimé entre-temps : c'est l'état réel qui s'affiche.
+        task: { ...stored, estimatedHours: 18, lockVersion: 5 },
+      })
+    })
+
+    await typeHours(wrapper, 'Restant', '40')
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Restant').text()).toBe('6 h')
+    expect(hourButton(wrapper, 'Restant').classes()).toContain('rejected')
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('18 h')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe('OpenProject a refusé la modification : Le temps restant ne peut pas dépasser le temps estimé.')
+    // Un refus ne change pas en réessayant.
+    expect(wrapper.find('aside .edit-error').text()).not.toContain('Réessayer')
+  })
+
+  it('reprend la valeur d\'avant quand OP ne répond pas, et propose de réessayer', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(503, 'op_unavailable')
+    })
+
+    await typeHours(wrapper, 'Estimé', '30')
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('16 h')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe('OpenProject ne répond pas. Réessayez dans un instant.')
+
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...stored, estimatedHours: 30, lockVersion: 5 },
+    }))
+    const retry = wrapper.findAll('aside .edit-error button').find(button => button.text() === 'Réessayer')!
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('30 h')
+    expect(wrapper.find('aside .edit-error').exists()).toBe(false)
+  })
+
+  it('vide un temps quand le champ est effacé', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...stored, remainingHours: null, lockVersion: 5 },
+    }))
+
+    await typeHours(wrapper, 'Restant', '')
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, remainingHours: null })
+    expect(hourButton(wrapper, 'Restant').text()).toBe('Non renseigné')
+  })
+
+  it('refuse une saisie qui n\'est pas un temps, sans rien envoyer', async () => {
+    const wrapper = await openTask()
+
+    await typeHours(wrapper, 'Estimé', 'deux heures')
+
+    expect(wrapper.find('aside .hour input').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.find('aside .hour [role="alert"]').text()).toContain('Saisissez des heures')
+    expect(fakeApi.calls.some(call => call.method === 'PATCH')).toBe(false)
+  })
+
+  it('annule la saisie avec Échap, sans fermer le détail', async () => {
+    const wrapper = await openTask()
+
+    await hourButton(wrapper, 'Estimé').trigger('click')
+    const input = wrapper.find('aside .hour input')
+    await input.setValue('99')
+    await input.trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+
+    expect(wrapper.find('aside .hour input').exists()).toBe(false)
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('16 h')
+    expect(wrapper.find('aside.task-detail').exists()).toBe(true)
+    expect(fakeApi.calls.some(call => call.method === 'PATCH')).toBe(false)
+  })
+
+  it('n\'envoie rien quand la valeur n\'a pas changé', async () => {
+    const wrapper = await openTask()
+
+    await typeHours(wrapper, 'Estimé', '16')
+    await flushPromises()
+
+    expect(fakeApi.calls.some(call => call.method === 'PATCH')).toBe(false)
+  })
+
+  it('montre le nouvel assigné dans l\'arbre avant la réponse d\'OP, et revient en arrière sur un refus', async () => {
+    const wrapper = await openTask()
+    const answer = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => answer.promise)
+    expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Camille Roux')
+
+    // Le choix dans la liste est couvert par les tests de bout en bout ; ici, l'effet de la sélection.
+    wrapper.findComponent({ name: 'TaskAssigneePicker' }).vm.$emit('select', bruno)
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, assigneeId: 4 })
+    expect(wrapper.find('aside .trigger').text()).toBe('Bruno Petit')
+    expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Bruno Petit')
+
+    answer.reject(new ApiError(422, 'op_rejected', {
+      error: 'op_rejected',
+      message: 'OpenProject a refusé la modification : Assignee is not set to one of the allowed values.',
+      task: stored,
+    }))
+    await flushPromises()
+
+    expect(wrapper.find('aside .trigger').text()).toBe('Camille Roux')
+    expect(wrapper.find('aside .trigger').classes()).toContain('rejected')
+    expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Camille Roux')
+  })
+})
+
+describe('saisie des heures', () => {
+  it.each([
+    ['2', 2],
+    ['2,5', 2.5],
+    ['2.5', 2.5],
+    [' 12 h ', 12],
+    ['1h30', 1.5],
+    ['1 h 45', 1.75],
+    ['0', 0],
+    ['', null],
+  ])('lit « %s »', (text, hours) => {
+    expect(parseHours(text)).toBe(hours)
+  })
+
+  it.each([
+    'deux',
+    '-1',
+    '1,5 h 30',
+    '1 h 60',
+    '2,',
+    '100001',
+    '0,0001',
+  ])('refuse « %s »', (text) => {
+    expect(parseHours(text)).toBeUndefined()
+  })
+})
+
+describe('assigné dans l\'arbre', () => {
+  it('ne copie que le chemin de la tâche modifiée', () => {
+    const updated = withAssignee(tree, 11, bruno)
+
+    expect(updated[0]!.children[0]!.assignee).toEqual(bruno)
+    expect(updated[1]).toBe(tree[1])
+    expect(tree[0]!.children[0]!.assignee).toEqual(camille)
+  })
+
+  it('rend l\'arbre tel quel quand l\'assigné ne change pas', () => {
+    expect(withAssignee(tree, 11, { ...camille })).toBe(tree)
+    expect(withAssignee(tree, 99, bruno)).toBe(tree)
+  })
+})

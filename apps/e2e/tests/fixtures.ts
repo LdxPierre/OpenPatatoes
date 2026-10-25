@@ -11,7 +11,18 @@ export interface Scenario {
   op?: {
     users?: Array<{ name: string, token: string }>
     projects?: Array<{ id: number, identifier: string, name: string, memberIds: number[] }>
-    workPackages?: Array<{ id: number, projectId: number, subject: string, parentId?: number | null }>
+    workPackages?: Array<{
+      id: number
+      projectId: number
+      subject: string
+      parentId?: number | null
+      assigneeId?: number | null
+      /** Durées ISO 8601, comme dans OP (`PT2H30M`). */
+      estimatedTime?: string | null
+      remainingTime?: string | null
+    }>
+    /** Réponse imposée à la prochaine requête correspondante vers le faux OP. Usage unique. */
+    interceptions?: Array<{ method?: string, path?: string, status: number, body?: unknown }>
   }
 }
 

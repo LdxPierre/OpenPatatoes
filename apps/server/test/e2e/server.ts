@@ -1,4 +1,4 @@
-import type { FakeProject, NewFakeWorkPackage } from '../support/fake-op.js'
+import type { FakeProject, Interception, NewFakeWorkPackage } from '../support/fake-op.js'
 import process from 'node:process'
 import { hashPassword } from '../../src/auth/password.js'
 import { createDatabase } from '../../src/db/client.js'
@@ -25,6 +25,8 @@ interface Scenario {
     users?: Array<{ name: string, token: string }>
     projects?: FakeProject[]
     workPackages?: NewFakeWorkPackage[]
+    /** Réponses imposées aux prochaines requêtes correspondantes (`interceptNext`). */
+    interceptions?: Interception[]
   }
 }
 
@@ -46,6 +48,7 @@ app.post<{ Body: Scenario }>('/api/__e2e/reset', async (request, reply) => {
   opScenario.users?.forEach(user => op.addUser(user))
   opScenario.projects?.forEach(project => op.addProject(project))
   opScenario.workPackages?.forEach(workPackage => op.addWorkPackage(workPackage))
+  opScenario.interceptions?.forEach(interception => op.interceptNext(interception))
 
   for (const { username, password, isAdmin = false, opToken } of accounts) {
     await db.insert(users).values({ username, passwordHash: await hashPassword(password), isAdmin })

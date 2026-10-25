@@ -142,6 +142,8 @@ La maquette de référence est `explorations/detail-tache-panneau-droite.html`.
 - **Propriétés** : une par ligne de 28 px, libellé et valeur côte à côte. Les valeurs courtes, type et priorité, vont par deux. Une propriété vide n'est pas affichée.
 - **Dates** : début et échéance sur une ligne (« 6 oct. → 31 oct. »), suivies de l'échéance relative (« dans 6 jours »). Un retard s'affiche en rouge, sauf si la tâche est fermée. Un jalon n'affiche que son échéance.
 - **Sous-tâches** : tirées de l'arbre déjà chargé, avec les traits de racine et leur état.
+- **Modification** : le temps estimé, le temps restant et l'assigné se modifient sur place. Le nombre devient un champ de même taille, sans que rien ne bouge autour. Entrée ou la sortie du champ enregistrent, Échap annule. Une saisie invalide affiche son message dans une bulle sous le champ. L'assigné se choisit dans une liste avec recherche, sous son nom.
+- **Attente et refus d'OP** : la nouvelle valeur s'affiche tout de suite, soulignée en pointillé violet jusqu'à la réponse d'OP. Si OP refuse, la valeur revient à l'état réel, prend la teinte d'erreur et une alerte `error` reprend le message d'OP sous les heures.
 - **À venir** : la description (#12), puis un onglet Activité (#13). Dans ce fil, les commentaires sont mis en avant et les modifications tiennent sur une ligne, avec le détail au survol.
 
 ## Thème

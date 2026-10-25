@@ -1,6 +1,38 @@
+import { TASK_HOURS_MAX, TASK_HOURS_MIN } from '@openpatatoes/shared'
+
 /** Heures décimales, arrondies au centième pour l'affichage : « 12,5 h ». */
 export function formatHours(hours: number) {
   return `${hours.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}\u202Fh`
+}
+
+/** Heures à modifier dans un champ : « 12,5 », sans unité ni séparateur de milliers. */
+export function hoursInputText(hours: number | null) {
+  return hours === null
+    ? ''
+    : hours.toLocaleString('fr-FR', { maximumFractionDigits: 2, useGrouping: false })
+}
+
+/**
+ * Heures saisies : « 2,5 », « 2.5 », « 2 h » ou « 1 h 30 ». Un champ vide donne `null`, qui vide
+ * la valeur dans OP. Renvoie `undefined` si la saisie n'est pas un temps accepté.
+ */
+export function parseHours(text: string): number | null | undefined {
+  const compact = text.replace(/\s/g, '').toLowerCase()
+  if (compact === '')
+    return null
+  const match = /^(\d+(?:[.,]\d+)?)(?:h(?:(\d{1,2})(?:min)?)?)?$/.exec(compact)
+  if (!match)
+    return undefined
+  const minutes = match[2] === undefined
+    ? 0
+    : Number(match[2])
+  // Les minutes ne suivent qu'un nombre d'heures entier, et restent sous l'heure.
+  if (minutes >= 60 || (minutes > 0 && /[.,]/.test(match[1]!)))
+    return undefined
+  const hours = Number(match[1]!.replace(',', '.')) + minutes / 60
+  if (hours !== 0 && (hours < TASK_HOURS_MIN || hours > TASK_HOURS_MAX))
+    return undefined
+  return hours
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
