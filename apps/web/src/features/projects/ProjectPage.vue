@@ -1,13 +1,42 @@
 <script setup lang="ts">
 import type { OpErrorMessages } from '@/shared/api/op-error'
-import { computed } from 'vue'
+import { computed, nextTick, useTemplateRef } from 'vue'
+import { useRouter } from 'vue-router'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
 import TaskTree from '@/features/tasks/TaskTree.vue'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { useProjectQuery } from './projects'
 
-const props = defineProps<{ id: number }>()
+const props = defineProps<{
+  id: number
+  /** Tâche dont le détail est ouvert à côté de l'arbre. */
+  taskId: number | null
+}>()
+
+const router = useRouter()
+const tree = useTemplateRef('tree')
+
+function openTask(taskId: number) {
+  if (taskId !== props.taskId) {
+    router.push({
+      name: 'task',
+      params: { id: props.id, taskId },
+    })
+  }
+}
+
+/** Fermer le détail rend la main à l'arbre, sur la tâche qui était ouverte. */
+async function closeTask() {
+  if (props.taskId === null)
+    return
+  await router.push({
+    name: 'project',
+    params: { id: props.id },
+  })
+  await nextTick()
+  tree.value?.focusActive()
+}
 
 const project = useProjectQuery(() => props.id)
 const tasks = useTaskTreeQuery(() => props.id)
@@ -62,28 +91,37 @@ const taskErrorMessages: OpErrorMessages = {
         <span v-if="countText" class="count op-num">{{ countText }}</span>
       </div>
 
-      <p v-if="tasks.isPending.value" class="muted" role="status">
-        Chargement des tâches…
-      </p>
+      <div class="workspace" :class="{ 'with-detail': taskId !== null }" @keydown.esc="closeTask">
+        <div class="tasks">
+          <p v-if="tasks.isPending.value" class="muted" role="status">
+            Chargement des tâches…
+          </p>
 
-      <OpErrorAlert
-        v-else-if="tasks.error.value"
-        :error="tasks.error.value"
-        :messages="taskErrorMessages"
-        :retrying="tasks.isFetching.value"
-        @retry="tasks.refetch()"
-      />
+          <OpErrorAlert
+            v-else-if="tasks.error.value"
+            :error="tasks.error.value"
+            :messages="taskErrorMessages"
+            :retrying="tasks.isFetching.value"
+            @retry="tasks.refetch()"
+          />
 
-      <p v-else-if="tasks.data.value?.length === 0" class="muted" role="status">
-        Ce projet n'a encore aucune tâche. Les tâches créées dans OpenProject apparaîtront ici.
-      </p>
+          <p v-else-if="tasks.data.value?.length === 0" class="muted" role="status">
+            Ce projet n'a encore aucune tâche. Les tâches créées dans OpenProject apparaîtront ici.
+          </p>
 
-      <TaskTree
-        v-else-if="tasks.data.value"
-        :key="id"
-        :tasks="tasks.data.value"
-        :label="`Tâches de ${project.data.value.name}`"
-      />
+          <TaskTree
+            v-else-if="tasks.data.value"
+            ref="tree"
+            :key="id"
+            :tasks="tasks.data.value"
+            :label="`Tâches de ${project.data.value.name}`"
+            :selected-id="taskId"
+            @open="openTask"
+          />
+        </div>
+
+        <RouterView @close="closeTask" />
+      </div>
     </template>
   </main>
 </template>
@@ -136,5 +174,32 @@ h1 {
 
 .muted {
   margin: 0;
+}
+
+.workspace {
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--op-space-8);
+}
+
+.workspace.with-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--op-space-4);
+  min-width: 0;
+}
+
+/* Sur petit écran, le détail recouvre l'arbre : l'arbre garde toute la largeur. */
+@media (max-width: 760px) {
+  .workspace.with-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

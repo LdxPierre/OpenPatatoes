@@ -1,7 +1,7 @@
-import type { TaskNode } from '@openpatatoes/shared'
+import type { TaskDetailResponse, TaskNode, TaskTreeResponse } from '@openpatatoes/shared'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskTreeResponseSchema } from '@openpatatoes/shared'
-import { useQuery } from '@tanstack/vue-query'
+import { forEachTask, taskDetailResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
 import { apiFetch } from '@/shared/api/api-fetch'
@@ -12,15 +12,75 @@ import { apiFetch } from '@/shared/api/api-fetch'
  */
 export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
   return useQuery({
-    queryKey: computed(() => [
-      ...projectsQueryKey,
-      toValue(projectId),
-      'tasks',
-    ]),
+    queryKey: computed(() => taskTreeQueryKey(toValue(projectId))),
     queryFn: ({ signal }) => apiFetch(`/projects/${toValue(projectId)}/tasks`, { schema: taskTreeResponseSchema, signal }),
     select: data => data.tasks,
     shallow: true,
   })
+}
+
+function taskTreeQueryKey(projectId: number) {
+  return [
+    ...projectsQueryKey,
+    projectId,
+    'tasks',
+  ] as const
+}
+
+/**
+ * Détail d'une tâche. Ouverte depuis l'arbre du projet, son titre et son parent
+ * s'affichent tout de suite ; les heures attendent la réponse d'OP.
+ */
+export function useTaskDetailQuery(projectId: MaybeRefOrGetter<number>, taskId: MaybeRefOrGetter<number>) {
+  const queryClient = useQueryClient()
+  return useQuery({
+    queryKey: computed(() => [
+      'tasks',
+      toValue(taskId),
+    ]),
+    queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}`, { schema: taskDetailResponseSchema, signal }),
+    placeholderData: (): TaskDetailResponse | undefined => {
+      const roots = queryClient.getQueryData<TaskTreeResponse>(taskTreeQueryKey(toValue(projectId)))?.tasks
+      const path = roots && taskPath(roots, toValue(taskId))
+      if (!path)
+        return undefined
+      const task = path.at(-1)!
+      const parent = path.at(-2)
+      return {
+        task: {
+          id: task.id,
+          subject: task.subject,
+          estimatedHours: null,
+          remainingHours: null,
+          parent: parent
+            ? { id: parent.id, subject: parent.subject }
+            : null,
+        },
+      }
+    },
+    select: data => data.task,
+  })
+}
+
+/** Heures décimales, arrondies au centième pour l'affichage : « 12,5 h ». */
+export function formatHours(hours: number) {
+  return `${hours.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}\u202Fh`
+}
+
+/**
+ * Chemin de la racine jusqu'à la tâche, la tâche comprise ; `null` si elle n'est pas dans l'arbre.
+ * Le parcours est itératif, comme la construction de l'arbre côté serveur.
+ */
+export function taskPath(roots: TaskNode[], id: number): TaskNode[] | null {
+  const stack = roots.map(task => [task])
+  for (let path = stack.pop(); path; path = stack.pop()) {
+    const task = path.at(-1)!
+    if (task.id === id)
+      return path
+    for (const child of task.children)
+      stack.push([...path, child])
+  }
+  return null
 }
 
 /** Ligne visible de l'arbre, à plat pour la virtualisation. */

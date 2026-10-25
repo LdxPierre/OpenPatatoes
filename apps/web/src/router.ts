@@ -28,7 +28,22 @@ export const router = createRouter({
       component: () => import('@/features/projects/ProjectPage.vue'),
       props: route => ({
         id: Number(route.params.id),
+        taskId: route.params.taskId
+          ? Number(route.params.taskId)
+          : null,
       }),
+      children: [
+        {
+          // Le détail s'ouvre à côté de l'arbre : l'adresse garde le projet.
+          path: 'taches/:taskId([1-9]\\d{0,14})',
+          name: 'task',
+          component: () => import('@/features/tasks/TaskDetailPanel.vue'),
+          props: route => ({
+            projectId: Number(route.params.id),
+            taskId: Number(route.params.taskId),
+          }),
+        },
+      ],
     },
     {
       path: '/connexion',

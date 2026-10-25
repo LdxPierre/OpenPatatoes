@@ -1,6 +1,6 @@
 import type { TaskNode } from '@openpatatoes/shared'
 import { describe, expect, it } from 'vitest'
-import { countTasks, visibleTaskRows } from '@/features/tasks/tasks'
+import { countTasks, formatHours, taskPath, visibleTaskRows } from '@/features/tasks/tasks'
 
 function task(id: number, children: TaskNode[] = []): TaskNode {
   return {
@@ -94,5 +94,26 @@ describe('lignes visibles de l\'arbre', () => {
 
   it('compte les tâches à tous les niveaux', () => {
     expect(countTasks(tree)).toBe(6)
+  })
+})
+
+describe('chemin d\'une tâche dans l\'arbre', () => {
+  it('va de la racine à la tâche, la tâche comprise', () => {
+    expect(taskPath(tree, 4)?.map(task => task.id)).toEqual([1, 2, 4])
+    expect(taskPath(tree, 6)?.map(task => task.id)).toEqual([6])
+  })
+
+  it('vaut null pour une tâche absente de l\'arbre', () => {
+    expect(taskPath(tree, 99)).toBeNull()
+  })
+})
+
+describe('affichage des heures', () => {
+  it('écrit les heures décimales à la française, au centième au plus', () => {
+    expect(formatHours(12.5)).toBe('12,5\u202Fh')
+    expect(formatHours(8)).toBe('8\u202Fh')
+    expect(formatHours(0.25)).toBe('0,25\u202Fh')
+    expect(formatHours(1 / 3)).toBe('0,33\u202Fh')
+    expect(formatHours(1234.5)).toBe('1\u202F234,5\u202Fh')
   })
 })

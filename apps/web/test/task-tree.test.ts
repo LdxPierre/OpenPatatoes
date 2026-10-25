@@ -117,7 +117,7 @@ describe('arbre des tâches d\'un projet', () => {
     expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
   })
 
-  it('se parcourt au clavier : flèches pour bouger, déplier et replier', async () => {
+  it('se parcourt au clavier : flèches pour bouger, déplier et replier, Espace pour basculer', async () => {
     const wrapper = await openProject()
     const focused = () => document.activeElement?.querySelector('.name')?.textContent
 
@@ -132,7 +132,7 @@ describe('arbre des tâches d\'un projet', () => {
     await flushPromises()
     expect(focused()).toBe('Parcours de connexion')
 
-    await row(wrapper, 'Parcours de connexion').trigger('keydown', { key: 'Enter' })
+    await row(wrapper, 'Parcours de connexion').trigger('keydown', { key: ' ' })
     expect(rowTitles(wrapper)).toContain('Migration des comptes existants')
 
     await row(wrapper, 'Parcours de connexion').trigger('keydown', { key: 'ArrowDown' })
@@ -151,7 +151,7 @@ describe('arbre des tâches d\'un projet', () => {
   it('rend la main au nœud replié quand la ligne active disparaît', async () => {
     const wrapper = await openProject()
     await row(wrapper, 'Refonte du portail client').find('.toggle').trigger('click')
-    await row(wrapper, 'Espace documents').trigger('click')
+    await row(wrapper, 'Espace documents').trigger('focus')
     expect(row(wrapper, 'Espace documents').attributes('tabindex')).toBe('0')
 
     await row(wrapper, 'Refonte du portail client').find('.toggle').trigger('click')

@@ -3,20 +3,24 @@ import type { TaskNode } from '@openpatatoes/shared'
 import type { Range } from '@tanstack/vue-virtual'
 import type { TaskRow } from './tasks'
 import { defaultRangeExtractor, useWindowVirtualizer } from '@tanstack/vue-virtual'
-import { computed, nextTick, onMounted, reactive, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
-import { visibleTaskRows } from './tasks'
+import { taskPath, visibleTaskRows } from './tasks'
 
 /**
  * Arbre des tâches d'un projet. Seules les racines sont visibles au départ.
  * Les lignes sont virtualisées sur le défilement de la page : seules celles à l'écran existent.
  * Clavier : flèches haut et bas pour se déplacer, droite et gauche pour déplier et replier,
- * Entrée ou Espace pour basculer, Début et Fin pour aller aux extrémités.
+ * Espace pour basculer, Début et Fin pour aller aux extrémités. Entrée ou un clic ouvre le détail.
  */
 const props = defineProps<{
   tasks: TaskNode[]
   label: string
+  /** Tâche dont le détail est ouvert : elle est surlignée, et ses ancêtres dépliés. */
+  selectedId?: number | null
 }>()
+
+const emit = defineEmits<{ open: [id: number] }>()
 
 const expanded = reactive(new Set<number>())
 const rows = computed(() => visibleTaskRows(props.tasks, expanded))
@@ -53,6 +57,8 @@ const virtualizer = useWindowVirtualizer(computed(() => {
   }
 }))
 
+const mounted = ref(false)
+
 onMounted(() => {
   if (!list.value)
     return
@@ -60,7 +66,28 @@ onMounted(() => {
   const rootSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
   if (rootSize > 0)
     rowHeight.value = rootSize * 2
+  mounted.value = true
+  revealSelected()
 })
+
+/** La tâche ouverte devient visible et active, même ouverte depuis son adresse ou depuis un lien. */
+async function revealSelected() {
+  if (props.selectedId == null)
+    return
+  const path = taskPath(props.tasks, props.selectedId)
+  if (!path)
+    return
+  for (const ancestor of path.slice(0, -1))
+    expanded.add(ancestor.id)
+  activeId.value = props.selectedId
+  if (!mounted.value)
+    return
+  // Le virtualiseur prend en compte les lignes dépliées au rendu suivant.
+  await nextTick()
+  virtualizer.value.scrollToIndex(activeIndex.value, { align: 'auto' })
+}
+
+watch(() => props.selectedId, revealSelected, { immediate: true })
 
 const virtualRows = computed(() => virtualizer.value.getVirtualItems()
   .flatMap((item) => {
@@ -131,6 +158,8 @@ function onKeydown(event: KeyboardEvent, index: number, row: TaskRow) {
         focusRow(row.parentIndex)
       break
     case 'Enter':
+      emit('open', row.task.id)
+      break
     case ' ':
       if (!row.hasChildren)
         return
@@ -141,6 +170,13 @@ function onKeydown(event: KeyboardEvent, index: number, row: TaskRow) {
   }
   event.preventDefault()
 }
+
+/** Remet le focus sur la ligne active, par exemple à la fermeture du détail. */
+function focusActive() {
+  focusRow(activeIndex.value)
+}
+
+defineExpose({ focusActive })
 
 /** Titre complet au focus, seulement s'il est coupé. Au survol, l'attribut `title` suffit. */
 const revealedId = ref<number | null>(null)
@@ -189,7 +225,7 @@ function guideStyle(level: number) {
         v-for="{ row, index, top } in virtualRows"
         :key="row.task.id"
         class="tree-row task"
-        :class="{ root: row.depth === 0, active: row.task.id === activeId, revealed: row.task.id === revealedId }"
+        :class="{ root: row.depth === 0, selected: row.task.id === selectedId, revealed: row.task.id === revealedId }"
         role="treeitem"
         :data-index="index"
         :tabindex="index === activeIndex ? 0 : -1"
@@ -197,12 +233,13 @@ function guideStyle(level: number) {
         :aria-posinset="row.position"
         :aria-setsize="row.siblingCount"
         :aria-expanded="row.hasChildren ? row.expanded : undefined"
+        :aria-selected="row.task.id === selectedId"
         :title="row.task.subject"
         :style="{ transform: `translateY(${top}px)` }"
         @keydown="onKeydown($event, index, row)"
         @focus="onFocus($event, row)"
         @blur="onBlur(row)"
-        @click="activeId = row.task.id"
+        @click="activeId = row.task.id; emit('open', row.task.id)"
       >
         <span class="title">
           <span class="guides" :style="{ '--depth': row.depth }" aria-hidden="true">
@@ -287,14 +324,14 @@ function guideStyle(level: number) {
   height: var(--p-app-tree-row-height);
   border-radius: var(--p-border-radius-md);
   font-size: var(--op-text-md);
-  cursor: default;
+  cursor: pointer;
 }
 
 .task:hover {
   background: var(--p-app-hover);
 }
 
-.task.active {
+.task.selected {
   background: var(--p-highlight-background);
 }
 
