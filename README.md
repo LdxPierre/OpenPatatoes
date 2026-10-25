@@ -27,3 +27,5 @@ pnpm lint        # pnpm lint:fix pour corriger
 pnpm typecheck
 pnpm test        # tests du serveur, PostgreSQL doit tourner
 ```
+
+Pour la méthode de travail (branches, validation, relecture), voir [CONTRIBUTING.md](CONTRIBUTING.md).
