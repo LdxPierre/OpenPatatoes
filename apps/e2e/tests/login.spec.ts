@@ -43,6 +43,6 @@ test('des identifiants refusés affichent une erreur', async ({ page, api }) => 
   await page.getByLabel('Mot de passe').fill('faux')
   await page.getByRole('button', { name: 'Se connecter' }).click()
 
-  await expect(page.getByText('Identifiant ou mot de passe incorrect.', { exact: false })).toBeVisible()
+  await expect(page.getByText('Identifiant ou mot de passe incorrect.')).toBeVisible()
   await expect(page).toHaveURL('/connexion')
 })

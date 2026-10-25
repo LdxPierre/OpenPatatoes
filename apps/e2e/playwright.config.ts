@@ -1,7 +1,7 @@
 import process from 'node:process'
 import { defineConfig, devices } from '@playwright/test'
 
-/** Port dédié : les tests ne réutilisent pas un `pnpm dev` lancé à côté. */
+/** Port dédié, distinct de celui de `pnpm dev`. */
 const port = 5174
 
 export default defineConfig({
@@ -25,6 +25,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm --filter @openpatatoes/web exec vite --port ${port} --strictPort`,
     url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
+    // Un Vite déjà lancé sur ce port peut servir le code d'un autre worktree.
+    reuseExistingServer: false,
   },
 })
