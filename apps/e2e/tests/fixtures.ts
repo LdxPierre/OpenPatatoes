@@ -4,6 +4,7 @@ import { test as base, expect } from '@playwright/test'
 /**
  * État de départ d'un test, appliqué par le serveur e2e (`apps/server/test/e2e/server.ts`).
  * Les utilisateurs OP reçoivent les identifiants 1, 2… dans l'ordre : `memberIds` s'y réfère.
+ * Sous-ensemble du `Scenario` du serveur, qui accepte tous les champs du faux OP : à compléter au besoin.
  */
 export interface Scenario {
   accounts?: Array<Account & { isAdmin?: boolean, opToken?: string }>
@@ -18,6 +19,8 @@ export interface Account {
   username: string
   password: string
 }
+
+export const alice: Account = { username: 'alice', password: 'mot-de-passe-alice' }
 
 export const test = base.extend<{ scenario: Scenario, resetStack: void }>({
   scenario: [

@@ -1,7 +1,4 @@
-import type { Account } from './fixtures'
-import { expect, signIn, test } from './fixtures'
-
-const alice: Account = { username: 'alice', password: 'mot-de-passe-alice' }
+import { alice, expect, signIn, test } from './fixtures'
 
 test.use({
   scenario: {
@@ -88,5 +85,5 @@ test('un projet hors de portée du jeton est introuvable', async ({ page }) => {
   await page.goto('/projets/3')
 
   await expect(page.getByRole('heading', { name: 'Rucher' })).toHaveCount(0)
-  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(page.getByRole('alert')).toContainText('Ce projet est introuvable ou inaccessible avec votre jeton OpenProject.')
 })

@@ -1,7 +1,4 @@
-import type { Account } from './fixtures'
-import { expect, signIn, test } from './fixtures'
-
-const alice: Account = { username: 'alice', password: 'mot-de-passe-alice' }
+import { alice, expect, signIn, test } from './fixtures'
 
 test.use({
   scenario: {

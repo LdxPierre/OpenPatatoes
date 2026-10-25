@@ -15,7 +15,10 @@ import { startFakeOp } from '../support/fake-op.js'
  * puis les remplit. Cette route n'existe que dans ce serveur.
  */
 
-/** Scénario d'un test. Les utilisateurs OP reçoivent les identifiants 1, 2… dans l'ordre. */
+/**
+ * Scénario d'un test. Les utilisateurs OP reçoivent les identifiants 1, 2… dans l'ordre.
+ * `apps/e2e/tests/fixtures.ts` en déclare la partie utilisée par les tests.
+ */
 interface Scenario {
   accounts?: Array<{ username: string, password: string, isAdmin?: boolean, opToken?: string }>
   op?: {

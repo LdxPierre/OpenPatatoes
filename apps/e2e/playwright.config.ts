@@ -33,6 +33,8 @@ export default defineConfig({
         E2E_API_PORT: String(apiPort),
       },
       reuseExistingServer: false,
+      // Sans signal, Playwright tue le serveur sans lui laisser fermer la base ni le faux OP.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
     },
     {
       command: `pnpm --filter @openpatatoes/web exec vite --port ${webPort} --strictPort`,
