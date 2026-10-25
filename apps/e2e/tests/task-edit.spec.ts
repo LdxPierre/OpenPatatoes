@@ -70,7 +70,16 @@ test.describe('modification d\'une tâche', () => {
     const row = page.getByRole('treeitem', { name: /Pailler les allées/ })
     await expect(row).toContainText('Alice Martin')
 
+    // Échap ferme la liste, pas le détail.
     await panel.getByRole('button', { name: /^Assigné : Alice Martin/ }).click()
+    await expect(page.getByRole('option', { name: 'Bruno Petit' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('option')).toHaveCount(0)
+    await expect(panel).toBeVisible()
+
+    await panel.getByRole('button', { name: /^Assigné : Alice Martin/ }).click()
+    await page.getByPlaceholder('Rechercher un membre').fill('bru')
+    await expect(page.getByRole('option')).toHaveCount(1)
     const saved = page.waitForResponse(response => response.request().method() === 'PATCH')
     await page.getByRole('option', { name: 'Bruno Petit' }).click()
 

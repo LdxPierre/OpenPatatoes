@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { TaskNode } from '@openpatatoes/shared'
-import type { TaskEdit } from './tasks'
+import type { TaskEdit, TaskEditVariables } from './tasks'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { onKeyStroke } from '@vueuse/core'
-import { computed, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
 import TaskHoursField from './TaskHoursField.vue'
-import { taskPreview, taskRejection, useTaskDetailQuery, useTaskEditMutation } from './tasks'
+import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
 
 /**
  * Détail d'une tâche, à côté de l'arbre du projet. Le parent est relié au titre
@@ -32,11 +32,8 @@ const preview = computed(() => props.tree && taskPreview(props.tree, props.taskI
 /** En-tête : la réponse d'OP, ou ce que l'arbre sait déjà de la tâche. */
 const header = computed(() => detail.data.value ?? preview.value)
 
-onKeyStroke('Escape', (event) => {
-  // Échap a déjà servi : à annuler une saisie, ou à fermer une liste.
-  if (!event.defaultPrevented)
-    emit('close')
-})
+// Les champs et la liste des assignés arrêtent leur Échap : il ne ferme pas le détail.
+onKeyStroke('Escape', () => emit('close'))
 
 const closeButton = useTemplateRef('closeButton')
 
@@ -55,24 +52,28 @@ const errorMessages: OpErrorMessages = {
   fallback: 'L\'app n\'a pas pu ouvrir cette tâche. Réessayez dans un instant.',
 }
 
-const editMutation = useTaskEditMutation()
+/** Dernière modification de cette tâche qui a échoué ; effacée dès que l'utilisateur en lance une autre. */
+const failure = shallowRef<{ error: Error, variables: TaskEditVariables } | null>(null)
+watch(() => props.taskId, () => {
+  failure.value = null
+})
 
-/** Modification de cette tâche, la dernière lancée depuis le panneau. */
-const lastEdit = computed(() => editMutation.variables.value?.taskId === props.taskId
-  ? editMutation
-  : null)
+const editMutation = useTaskEditMutation({
+  onFailure: (error, variables) => {
+    if (variables.taskId === props.taskId)
+      failure.value = { error, variables }
+  },
+})
 
 /** Champs en attente de la réponse d'OP. */
-const pendingFields = computed(() => new Set(lastEdit.value?.isPending.value
-  ? Object.keys(lastEdit.value.variables.value!.edit)
-  : []))
+const pendingFields = usePendingTaskFields(() => props.taskId)
 
-const editError = computed(() => lastEdit.value?.error.value ?? null)
-const rejection = computed(() => editError.value && taskRejection(editError.value))
+const failedFields = computed(() => Object.keys(failure.value?.variables.edit ?? {}) as (keyof TaskEdit)[])
+const rejection = computed(() => failure.value && taskRejection(failure.value.error))
 
 /** Champs qu'OP vient de refuser : ils sont revenus à l'état réel. */
-const rejectedFields = computed(() => new Set(rejection.value
-  ? Object.keys(lastEdit.value!.variables.value!.edit)
+const rejectedFields = computed(() => new Set<string>(rejection.value
+  ? failedFields.value
   : []))
 
 const fieldNames: Record<keyof TaskEdit, string> = {
@@ -82,8 +83,7 @@ const fieldNames: Record<keyof TaskEdit, string> = {
 }
 
 const editErrorMessages = computed<OpErrorMessages>(() => {
-  const edited = Object.keys(lastEdit.value?.variables.value?.edit ?? {}) as (keyof TaskEdit)[]
-  const what = edited.map(field => fieldNames[field]).join(' et ')
+  const what = failedFields.value.map(field => fieldNames[field]).join(' et ')
   return {
     // Le message d'un refus vient d'OP, qui nomme le champ en cause.
     fallback: rejection.value?.message ?? `L'app n'a pas pu modifier ${what}. Réessayez dans un instant.`,
@@ -92,14 +92,13 @@ const editErrorMessages = computed<OpErrorMessages>(() => {
   }
 })
 
-function save(edit: TaskEdit) {
-  editMutation.mutate({ projectId: props.projectId, taskId: props.taskId, edit })
+function mutate(variables: TaskEditVariables) {
+  failure.value = null
+  editMutation.mutate(variables)
 }
 
-function retryEdit() {
-  const variables = editMutation.variables.value
-  if (variables)
-    editMutation.mutate(variables)
+function save(edit: TaskEdit) {
+  mutate({ projectId: props.projectId, taskId: props.taskId, edit })
 }
 
 const editableHours = computed(() => {
@@ -285,12 +284,11 @@ const closedSubtasksText = computed(() => {
               </dd>
             </div>
           </dl>
-          <div v-if="editError" class="edit-error">
+          <div v-if="failure" class="edit-error">
             <OpErrorAlert
-              :error="editError"
+              :error="failure.error"
               :messages="editErrorMessages"
-              :retrying="editMutation.isPending.value"
-              @retry="retryEdit"
+              @retry="mutate(failure.variables)"
             />
           </div>
           <p class="sr-only" role="status">

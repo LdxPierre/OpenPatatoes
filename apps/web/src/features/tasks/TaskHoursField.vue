@@ -40,6 +40,14 @@ async function stopEditing(refocus: boolean) {
   }
 }
 
+function leave() {
+  // Une saisie invalide abandonnée n'a rien à enregistrer : la valeur d'origine revient.
+  if (parseHours(text.value) === undefined)
+    stopEditing(false)
+  else
+    save(false)
+}
+
 function save(refocus: boolean) {
   if (!editing.value)
     return
@@ -79,7 +87,7 @@ function cancel() {
         :size="Math.max(text.length, 1)"
         @keydown.enter.prevent="save(true)"
         @keydown.escape.stop.prevent="cancel"
-        @blur="save(false)"
+        @blur="leave"
         @input="invalid = false"
       >
       <span class="unit" aria-hidden="true">h</span>

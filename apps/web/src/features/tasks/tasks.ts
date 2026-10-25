@@ -2,7 +2,7 @@ import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRejected
 import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { forEachTask, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
 import { ApiError, apiFetch } from '@/shared/api/api-fetch'
@@ -69,7 +69,7 @@ export interface TaskEdit {
   assignee?: OpNamedRef | null
 }
 
-interface TaskEditVariables {
+export interface TaskEditVariables {
   projectId: number
   taskId: number
   edit: TaskEdit
@@ -85,18 +85,23 @@ function applyEdit(task: TaskDetail, edit: TaskEdit): TaskDetail {
   }
 }
 
+/** Modifications d'une tâche encore en route vers OP, dans l'ordre où elles ont été lancées. */
+function pendingEdits(queryClient: QueryClient, taskId: number): TaskEditVariables[] {
+  return queryClient.getMutationCache()
+    .findAll({ mutationKey: taskEditMutationKey, status: 'pending' })
+    .map(mutation => mutation.state.variables as TaskEditVariables)
+    .filter(variables => variables.taskId === taskId)
+}
+
 /**
  * Enregistre la tâche dans le cache du détail, et son assigné dans l'arbre du projet.
- * Les modifications encore en route vers OP restent affichées par-dessus.
+ * Les modifications encore en route vers OP restent affichées par-dessus, sauf `settled`,
+ * celle qui vient d'obtenir sa réponse.
  */
 function showTask(queryClient: QueryClient, { projectId, taskId }: TaskEditVariables, base: TaskDetail, settled?: TaskEditVariables) {
-  const pending = queryClient.getMutationCache().findAll({
-    mutationKey: taskEditMutationKey,
-    status: 'pending',
-    predicate: mutation => mutation.state.variables !== settled
-      && (mutation.state.variables as TaskEditVariables | undefined)?.taskId === taskId,
-  })
-  const task = pending.reduce((shown, mutation) => applyEdit(shown, (mutation.state.variables as TaskEditVariables).edit), base)
+  const task = pendingEdits(queryClient, taskId)
+    .filter(variables => variables !== settled)
+    .reduce((shown, variables) => applyEdit(shown, variables.edit), base)
   queryClient.setQueryData<TaskDetailResponse>(taskDetailQueryKey(taskId), { task })
   queryClient.setQueryData<TaskTreeResponse>(
     taskTreeQueryKey(projectId),
@@ -138,13 +143,27 @@ export function taskRejection(error: Error): TaskRejectedResponse | null {
     : null
 }
 
+/** Champs d'une tâche dont la modification attend la réponse d'OP. */
+export function usePendingTaskFields(taskId: MaybeRefOrGetter<number>) {
+  const pending = useMutationState({
+    filters: { mutationKey: taskEditMutationKey, status: 'pending' },
+    select: mutation => mutation.state.variables as TaskEditVariables,
+  })
+  return computed(() => new Set(pending.value
+    .filter(variables => variables.taskId === toValue(taskId))
+    .flatMap(variables => Object.keys(variables.edit))))
+}
+
 /**
  * Modifie le temps estimé, le temps restant ou l'assigné d'une tâche. La modification
  * s'affiche tout de suite ; si OP la refuse, l'affichage revient à l'état réel.
- * Les modifications partent l'une après l'autre : chacune envoie la version de la tâche
- * que la précédente a obtenue d'OP.
+ * Les modifications partent l'une après l'autre, toutes tâches confondues : chacune envoie
+ * la version de la tâche que la précédente a obtenue d'OP.
+ *
+ * `onFailure` est appelé pour chaque modification qui échoue, même si d'autres ont été
+ * lancées depuis : l'état de `useMutation` ne suit que la dernière.
  */
-export function useTaskEditMutation() {
+export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, variables: TaskEditVariables) => void } = {}) {
   const queryClient = useQueryClient()
 
   function cachedTask(taskId: number) {
@@ -172,30 +191,36 @@ export function useTaskEditMutation() {
       })
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({
-        queryKey: taskDetailQueryKey(variables.taskId),
-        exact: true,
-      })
-      const previous = cachedTask(variables.taskId)
-      if (previous)
-        showTask(queryClient, variables, applyEdit(previous, variables.edit))
-      return { previous }
+      // Une lecture en cours effacerait l'affichage optimiste en arrivant.
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: taskDetailQueryKey(variables.taskId),
+          exact: true,
+        }),
+        queryClient.cancelQueries({
+          queryKey: taskTreeQueryKey(variables.projectId),
+          exact: true,
+        }),
+      ])
+      const current = cachedTask(variables.taskId)
+      if (current)
+        showTask(queryClient, variables, applyEdit(current, variables.edit))
     },
     onSuccess: ({ task }, variables) => showTask(queryClient, variables, task, variables),
-    onError: (error, variables, context) => {
-      const real = taskRejection(error)?.task
-      const current = cachedTask(variables.taskId)
-      if (real) {
+    onError: async (error, variables) => {
+      try {
+        // Sans l'état réel joint au refus, on le relit : le cache mêle des valeurs jamais enregistrées.
+        const real = taskRejection(error)?.task
+          ?? (await apiFetch(`/tasks/${variables.taskId}`, { schema: taskDetailResponseSchema })).task
         showTask(queryClient, variables, real, variables)
       }
-      else if (context?.previous && current) {
-        // Sans état réel, chaque champ modifié reprend sa valeur d'avant.
-        const restored = Object.fromEntries(Object.keys(variables.edit).map(field => [field, context.previous![field as keyof TaskEdit]]))
-        showTask(queryClient, variables, {
-          ...current,
-          ...restored,
-        }, variables)
+      catch {
+        await queryClient.invalidateQueries({
+          queryKey: taskDetailQueryKey(variables.taskId),
+          exact: true,
+        })
       }
+      onFailure?.(error, variables)
     },
   })
 }

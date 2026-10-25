@@ -199,6 +199,70 @@ describe('modification d\'une tâche', () => {
     expect(wrapper.find('aside .edit-error').exists()).toBe(false)
   })
 
+  it('affiche le refus d\'une modification même si une autre a été lancée depuis', async () => {
+    const wrapper = await openTask()
+    const first = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => first.promise)
+
+    await typeHours(wrapper, 'Estimé', '5')
+    await flushPromises()
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...stored, remainingHours: 3, lockVersion: 5 },
+    }))
+    await typeHours(wrapper, 'Restant', '3')
+    await flushPromises()
+    expect(hourButton(wrapper, 'Estimé').classes()).toContain('pending')
+    expect(hourButton(wrapper, 'Restant').classes()).toContain('pending')
+
+    first.reject(new ApiError(422, 'op_rejected', {
+      error: 'op_rejected',
+      message: 'OpenProject a refusé la modification : Le temps estimé est trop court.',
+      task: stored,
+    }))
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('16\u202Fh')
+    expect(hourButton(wrapper, 'Estimé').classes()).toContain('rejected')
+    expect(hourButton(wrapper, 'Restant').text()).toBe('3\u202Fh')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe('OpenProject a refusé la modification : Le temps estimé est trop court.')
+  })
+
+  it('relit la tâche après un échec sans état réel, sans garder une valeur jamais enregistrée', async () => {
+    const wrapper = await openTask()
+    const first = deferred<unknown>()
+    const second = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => first.promise)
+    await typeHours(wrapper, 'Estimé', '5')
+    await flushPromises()
+    fakeApi.on('PATCH', '/tasks/11', () => second.promise)
+    await typeHours(wrapper, 'Estimé', '6')
+    await flushPromises()
+
+    // OP refuse 5 et renvoie l'état réel ; 6 reste affiché, en attente.
+    first.reject(new ApiError(422, 'op_rejected', { error: 'op_rejected', message: 'Refusé.', task: stored }))
+    await flushPromises()
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('6\u202Fh')
+
+    // 6 échoue sans état réel : la tâche est relue, et 5 ne revient pas.
+    second.reject(new ApiError(0, 'network_error'))
+    await flushPromises()
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('16\u202Fh')
+    expect(fakeApi.calls.filter(call => call.method === 'GET' && call.path === '/tasks/11')).toHaveLength(2)
+  })
+
+  it('abandonne une saisie invalide quand le champ perd le focus', async () => {
+    const wrapper = await openTask()
+
+    await hourButton(wrapper, 'Estimé').trigger('click')
+    const input = wrapper.find('aside .hour input')
+    await input.setValue('deux')
+    await input.trigger('blur')
+
+    expect(wrapper.find('aside .hour input').exists()).toBe(false)
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('16\u202Fh')
+    expect(fakeApi.calls.some(call => call.method === 'PATCH')).toBe(false)
+  })
+
   it('vide un temps quand le champ est effacé', async () => {
     const wrapper = await openTask()
     fakeApi.on('PATCH', '/tasks/11', () => ({
