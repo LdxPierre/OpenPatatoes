@@ -41,6 +41,12 @@ export const FAKE_STATUSES = {
   delivered: { id: 15, name: 'Delivered', isClosed: true },
 } as const satisfies Record<string, FakeStatus>
 
+/** Ressource OP désignée par un lien HAL (type, priorité, version, catégorie). */
+export interface FakeNamedRef {
+  id: number
+  name: string
+}
+
 export interface FakeWorkPackage {
   id: number
   projectId: number
@@ -52,6 +58,17 @@ export interface FakeWorkPackage {
   /** Durées au format ISO 8601, comme dans OP (ex. `PT2H30M`). */
   estimatedTime: string | null
   remainingTime: string | null
+  /** `null` : OP omet le champ, comme pour un jeton sans droit de voir le temps passé. */
+  spentTime: string | null
+  responsibleId: number | null
+  /** Jours ISO (`2026-10-31`). Un jalon n'a que `date`. */
+  startDate: string | null
+  dueDate: string | null
+  date?: string | null
+  type: FakeNamedRef
+  priority: FakeNamedRef
+  version: FakeNamedRef | null
+  category: FakeNamedRef | null
   description: string
   /** Statuts proposés par le formulaire OP pour cette tâche (transitions autorisées). */
   allowedStatusIds: number[]
@@ -257,6 +274,13 @@ function statusResource(status: FakeStatus) {
 }
 
 /** Extrait l'identifiant final d'un lien HAL (`/api/v3/users/3` → 3), `null` si le lien est vide. */
+/** Lien HAL vers une ressource nommée ; `href: null` quand elle est vide, comme OP. */
+function namedLink(collection: string, ref: FakeNamedRef | null) {
+  return ref
+    ? { href: `/api/v3/${collection}/${ref.id}`, title: ref.name }
+    : { href: null }
+}
+
 function idFromHref(href: string | null): number | null {
   if (href === null)
     return null
@@ -346,13 +370,22 @@ export async function startFakeOp(): Promise<FakeOp> {
       estimatedTime: workPackage.estimatedTime,
       // OP omet `remainingTime` quand il n'est pas renseigné.
       ...(workPackage.remainingTime !== null && { remainingTime: workPackage.remainingTime }),
+      ...(workPackage.spentTime !== null && { spentTime: workPackage.spentTime }),
+      ...(workPackage.date === undefined
+        ? { startDate: workPackage.startDate, dueDate: workPackage.dueDate }
+        : { date: workPackage.date }),
       description: { format: 'markdown', raw: workPackage.description, html: `<p>${workPackage.description}</p>` },
       _links: {
         self: { href: `/api/v3/work_packages/${workPackage.id}`, title: workPackage.subject },
         project: { href: `/api/v3/projects/${workPackage.projectId}`, title: project?.name },
         parent: workPackageLink(workPackage.parentId),
         assignee: userLink(workPackage.assigneeId),
+        responsible: userLink(workPackage.responsibleId),
         status: statusLink(workPackage.statusId),
+        type: namedLink('types', workPackage.type),
+        priority: namedLink('priorities', workPackage.priority),
+        version: namedLink('versions', workPackage.version),
+        category: namedLink('categories', workPackage.category),
         activities: { href: `/api/v3/work_packages/${workPackage.id}/activities` },
       },
     }
@@ -576,6 +609,14 @@ export async function startFakeOp(): Promise<FakeOp> {
         statusId: FAKE_STATUSES.new.id,
         estimatedTime: null,
         remainingTime: null,
+        spentTime: 'PT0S',
+        responsibleId: null,
+        startDate: null,
+        dueDate: null,
+        type: { id: 1, name: 'Task' },
+        priority: { id: 8, name: 'Normal' },
+        version: null,
+        category: null,
         description: '',
         allowedStatusIds: Object.values(FAKE_STATUSES).map(status => status.id),
         ...workPackage,

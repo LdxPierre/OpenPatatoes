@@ -132,6 +132,18 @@ La maquette de référence est `explorations/a3-vitelotte-ouvert.html`.
 - **Titres longs** : coupés sur une ligne, titre complet au survol et au focus.
 - **Tâches de premier niveau** : en gras.
 
+## Détail d'une tâche
+
+La maquette de référence est `explorations/detail-tache-panneau-droite.html`.
+
+- **Place** : un panneau à droite de l'arbre. L'arbre garde sa place à gauche. Sur petit écran, le panneau recouvre l'arbre.
+- **En-tête** : la tâche parente, reliée au titre par un coude comme dans l'arbre, puis l'état, l'assigné et le numéro OP.
+- **Heures** : estimé, restant et passé sur une seule ligne. Une heure vide affiche « Non renseigné » : un libellé seul ferait croire à un oubli de l'app. Le temps passé disparaît quand OP ne le donne pas au jeton.
+- **Propriétés** : une par ligne de 28 px, libellé et valeur côte à côte. Les valeurs courtes, type et priorité, vont par deux. Une propriété vide n'est pas affichée.
+- **Dates** : début et échéance sur une ligne (« 6 oct. → 31 oct. »), suivies de l'échéance relative (« dans 6 jours »). Un retard s'affiche en rouge, sauf si la tâche est fermée. Un jalon n'affiche que son échéance.
+- **Sous-tâches** : tirées de l'arbre déjà chargé, avec les traits de racine et leur état.
+- **À venir** : la description (#12), puis un onglet Activité (#13). Dans ce fil, les commentaires sont mis en avant et les modifications tiennent sur une ligne, avec le détail au survol.
+
 ## Thème
 
 Trois choix, dans la barre du haut : **Système** (par défaut), **Clair**, **Sombre**. Le choix est gardé dans le navigateur. Avec Système, l'app suit le réglage du système en direct.
@@ -151,3 +163,5 @@ Dans [`explorations/`](explorations/), gardées pour y revenir :
 - `a2-vitelotte.html` : version précédente, avec un cadre autour du tableau, jugée trop étroite.
 - `a-b-c-directions.html` : les trois directions de départ (Vitelotte, Établi, Carnet).
 - `kanban-vitelotte.html` : vue kanban faite pour mettre le design à l'épreuve. Ce n'est pas une fonctionnalité prévue.
+- `detail-tache-panneau-droite.html` : **détail d'une tâche retenu**. Panneau à droite de l'arbre, temps et propriétés compacts, activité dans un onglet à part.
+- `detail-tache.html`, `detail-tache-panneau-gauche.html`, `detail-tache-panneau-continu.html` : pistes écartées pour le détail (inspecteur, lignée, grand détail ; panneau à gauche, avec et sans onglets).

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:grid;gap:36px;font-family:var(--font-sans);color:var(--foreground)}
+  .lede{margin:0;max-width:66ch;font-size:14px;line-height:1.55;color:var(--muted-foreground)}
+  .dir{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:24px;align-items:start}
+  .dir.wide{grid-template-columns:minmax(0,1fr)}
+  .why h2{font-size:16px;margin:0 0 6px;color:var(--foreground)}
+  .why p{margin:0 0 10px;font-size:13.5px;line-height:1.55;color:var(--muted-foreground);max-width:60ch}
+  .why ul{margin:0;padding-left:18px;font-size:13.5px;line-height:1.55;color:var(--muted-foreground)}
+  .why li{margin:3px 0}
+  .why b{color:var(--foreground);font-weight:600}
+  @media (max-width:640px){.dir{grid-template-columns:minmax(0,1fr)}}
+
+  /* ---- jetons Vitelotte (clair) ---- */
+  .op{
+    --bg:#FAF9FB; --surface:#FFFFFF; --text:#2A2530; --muted:#6B6375; --line:#E7E2EC;
+    --brand:#4A2B5E; --sel:#EFE7F5; --hover:#F4F0F7; --guide:#CDBDDA; --field:#8E8599;
+    --s-run-bg:#EADFF3; --s-run:#4A2B5E; --s-new-bg:#EEEBF1; --s-new:#5A5363;
+    --s-done-bg:#DCEBDF; --s-done:#2F6A3C; --s-plan-bg:#E3EBF6; --s-plan:#2D4F7C;
+    background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible Next',sans-serif;
+    border-radius:var(--radius);padding:20px;font-size:14px;line-height:1.5;min-width:0
+  }
+  .op *{box-sizing:border-box}
+  .op a{color:var(--brand);text-decoration:none;font-weight:500}
+  .op .num{font-variant-numeric:tabular-nums}
+  .op .mut{color:var(--muted)}
+  .st{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:1;padding:4px 8px 4px 6px;border-radius:999px;white-space:nowrap;background:var(--b);color:var(--c)}
+  .st:before{content:"";width:9px;height:9px;border-radius:50%;border:1.5px solid currentColor;flex:none;background:conic-gradient(currentColor var(--p), transparent 0)}
+  .run{--b:var(--s-run-bg);--c:var(--s-run);--p:50%}
+  .new{--b:var(--s-new-bg);--c:var(--s-new);--p:0%}
+  .done{--b:var(--s-done-bg);--c:var(--s-done);--p:100%}
+  .plan{--b:var(--s-plan-bg);--c:var(--s-plan);--p:25%}
+  .x{margin-left:auto;flex:none;width:28px;height:28px;display:grid;place-items:center;color:var(--muted);border-radius:6px}
+  h3{margin:0;font-size:20px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+  h4{margin:0 0 6px;font-size:13px;font-weight:500;color:var(--muted)}
+  .desc{margin:0;font-size:14px;line-height:1.55;max-width:62ch}
+  .desc p{margin:0 0 8px}
+  .act{display:grid;gap:10px;font-size:13px}
+  .act .who{font-weight:500}
+  .act time{color:var(--muted);font-size:12px}
+  .comment{border:1px solid var(--field);border-radius:6px;padding:7px 10px;color:var(--muted);font-size:13px;background:var(--surface)}
+  .elbowed{position:relative;padding-left:24px}
+  .elbowed:before{content:"";position:absolute;left:6px;top:-4px;width:14px;height:calc(4px + .65em * 1.3);border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:6px}
+
+  /* ---- A : inspecteur ---- */
+  .a .head{display:flex;gap:8px;align-items:flex-start}
+  .a .crumb{font-size:13px}
+  .a .props{display:grid;grid-template-columns:88px minmax(0,1fr);margin:16px -8px 0;font-size:14px}
+  .a .props dt,.a .props dd{height:32px;display:flex;align-items:center;margin:0;padding:0 8px}
+  .a .props dt{color:var(--muted);font-size:13px}
+  .a .props dd{border-radius:6px}
+  .a .props dd.edit{background:var(--hover)}
+  .a .props dd.edit:after{content:"Modifier";margin-left:auto;font-size:12px;color:var(--muted)}
+  .a .sep{height:1px;background:var(--line);margin:14px 0}
+
+  /* ---- B : lignée ---- */
+  .b .head{display:flex;gap:8px;align-items:flex-start}
+  .b .lineage{display:grid;gap:4px;font-size:13px}
+  .b .l1{padding-left:24px}
+  .b .meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 0 24px;font-size:13px}
+  .b .budget{margin:18px 0 0 24px}
+  .b .figures{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--muted)}
+  .b .figures b{font-size:20px;font-weight:500;color:var(--text)}
+  .b .bar{position:relative;height:6px;border-radius:3px;background:var(--line);margin-top:6px}
+  .b .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--brand)}
+  .b .kids{margin:18px 0 0;position:relative}
+  .b .kid{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 40px;align-items:center;gap:10px;height:32px;padding-left:44px;font-size:14px}
+  .b .kid:before{content:"";position:absolute;left:30px;top:0;bottom:0;width:2px;background:var(--guide)}
+  .b .kid:last-child:before{bottom:50%;width:10px;background:none;border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:6px}
+  .b .kid:not(:last-child):after{content:"";position:absolute;left:30px;top:50%;width:10px;height:2px;background:var(--guide)}
+  .b .kid span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b .kid .h{text-align:right;color:var(--muted);font-size:13px}
+  .b .stem{position:absolute;left:30px;top:-18px;height:18px;width:2px;background:var(--guide)}
+  .b .more{margin:14px 0 0 24px;font-size:13px}
+
+  /* ---- C : grand détail ---- */
+  .c{display:grid;grid-template-columns:200px minmax(0,1fr);gap:0;padding:0;overflow:hidden}
+  .c .side{padding:16px 8px;border-right:1px solid var(--line);font-size:13px}
+  .c .side .r{height:30px;display:flex;align-items:center;padding:0 8px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c .side .r.sel{background:var(--sel);font-weight:500}
+  .c .side .r.d1{padding-left:24px}.c .side .r.d2{padding-left:40px}
+  .c .side .back{display:block;padding:0 8px 10px;font-size:13px}
+  .c .main{padding:18px 22px;min-width:0}
+  .c .head{display:flex;gap:8px;align-items:flex-start}
+  .c .strip{display:grid;grid-template-columns:repeat(4,minmax(0,auto));justify-content:start;gap:0;margin:16px 0 20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .c .cell{padding:8px 24px 8px 0;margin-right:24px;border-right:1px solid var(--line);font-size:14px}
+  .c .cell:last-child{border-right:0}
+  .c .cell span{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+  .c .cols{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+  @media (max-width:640px){.c{grid-template-columns:minmax(0,1fr)}.c .side{display:none}.c .strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head>
+<body>
+<div class="wrap">
+  <p class="lede">Trois façons d'afficher une tâche, sur la même tâche du projet WrapperOP. Elles prévoient ce qui arrive ensuite : état (#11), assigné et heures modifiables (#8), parent modifiable (#10), description (#12) et activité (#13).</p>
+
+  <!-- A -->
+  <section class="dir">
+    <div class="op a">
+      <div class="head">
+        <div>
+          <a class="crumb" href="#">Refonte du portail client</a>
+          <h3 class="elbowed">Parcours de connexion</h3>
+        </div>
+        <span class="x">✕</span>
+      </div>
+      <dl class="props">
+        <dt>État</dt><dd><span class="st run">En cours</span></dd>
+        <dt>Assigné</dt><dd class="edit">Camille Roux</dd>
+        <dt>Estimé</dt><dd class="num">16 h</dd>
+        <dt>Restant</dt><dd class="num">6,5 h</dd>
+        <dt>Parent</dt><dd>Refonte du portail client</dd>
+      </dl>
+      <div class="sep"></div>
+      <h4>Description</h4>
+      <div class="desc"><p>Connexion par identifiant et mot de passe, session de 7 jours, déconnexion depuis la barre du haut.</p></div>
+      <div class="sep"></div>
+      <h4>Activité</h4>
+      <div class="act">
+        <div><span class="who">Camille Roux</span> a passé le restant de 9 h à 6,5 h <time>hier</time></div>
+        <div class="comment">Ajouter un commentaire</div>
+      </div>
+    </div>
+    <div class="why">
+      <h2>A. Inspecteur</h2>
+      <p>Une ligne par information, de 32 px comme les lignes de l'arbre. Le libellé est à gauche, la valeur à droite. Au survol, la valeur montre qu'elle se modifie sur place.</p>
+      <ul>
+        <li><b>Pour :</b> le plus dense et le plus prévisible. Chaque modification future (#8, #10, #11) a sa ligne, sans rien déplacer.</li>
+        <li><b>Contre :</b> rien n'attire l'œil, et les heures se lisent comme le reste. C'est le panneau d'un outil, pas d'une tâche.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="dir">
+    <div class="op b">
+      <div class="head">
+        <div class="lineage">
+          <a href="#">WrapperOP</a>
+          <a class="l1 elbowed" href="#" style="padding-left:24px">Refonte du portail client</a>
+        </div>
+        <span class="x">✕</span>
+      </div>
+      <h3 class="elbowed" style="margin-left:24px;margin-top:4px">Parcours de connexion</h3>
+      <div class="meta"><span class="st run">En cours</span><span>Camille Roux</span></div>
+      <div class="budget">
+        <div class="figures"><b class="num">6,5 h</b> restantes sur <span class="num">16 h</span> estimées</div>
+        <div class="bar" aria-hidden="true"><i style="width:40.6%"></i></div>
+      </div>
+      <div class="kids">
+        <div class="kid"><span>Connexion par identifiant</span><span class="st done">Fermé</span><span class="h num">0 h</span></div>
+        <div class="kid"><span>Session conservée 7 jours</span><span class="st run">En cours</span><span class="h num">4 h</span></div>
+        <div class="kid"><span>Déconnexion</span><span class="st new">Nouveau</span><span class="h num">2,5 h</span></div>
+      </div>
+      <a class="more" href="#" style="display:block">Description et activité</a>
+    </div>
+    <div class="why">
+      <h2>B. Lignée</h2>
+      <p>La tâche est montrée à sa place dans l'arbre : ses ancêtres au-dessus, ses sous-tâches en dessous, reliés par les traits de racine. Les heures forment une phrase, avec une barre du restant sur l'estimé.</p>
+      <ul>
+        <li><b>Pour :</b> c'est l'identité Vitelotte poussée au bout, et le motif dit quelque chose de vrai. Les sous-tâches, avec leurs heures, montrent d'où vient le restant.</li>
+        <li><b>Contre :</b> la description et l'activité passent au second plan, derrière un lien. La barre n'a pas de sens si le restant dépasse l'estimé.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="dir wide">
+    <div class="op c">
+      <nav class="side">
+        <a class="back" href="#">Tout l'arbre</a>
+        <div class="r">Refonte du portail client</div>
+        <div class="r d1 sel">Parcours de connexion</div>
+        <div class="r d2">Connexion par identifiant</div>
+        <div class="r d2">Session conservée 7 jours</div>
+        <div class="r d2">Déconnexion</div>
+        <div class="r d1">Espace documents</div>
+      </nav>
+      <div class="main">
+        <div class="head">
+          <div>
+            <a href="#" style="font-size:13px">Refonte du portail client</a>
+            <h3 class="elbowed">Parcours de connexion</h3>
+          </div>
+          <span class="x">✕</span>
+        </div>
+        <div class="strip">
+          <div class="cell"><span>État</span><span class="st run" style="display:inline-flex;margin:0;font-size:13px">En cours</span></div>
+          <div class="cell"><span>Assigné</span>Camille Roux</div>
+          <div class="cell num"><span>Estimé</span>16 h</div>
+          <div class="cell num"><span>Restant</span>6,5 h</div>
+        </div>
+        <div class="cols">
+          <div>
+            <h4>Description</h4>
+            <div class="desc"><p>Connexion par identifiant et mot de passe, session de 7 jours, déconnexion depuis la barre du haut. Le mot de passe est stocké haché, jamais en clair.</p></div>
+          </div>
+          <div>
+            <h4>Activité</h4>
+            <div class="act">
+              <div><span class="who">Camille Roux</span> a passé le restant de 9 h à 6,5 h <time>hier</time></div>
+              <div><span class="who">Alex Martin</span> a créé la tâche <time>12 octobre</time></div>
+              <div class="comment">Ajouter un commentaire</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="why">
+      <h2>C. Grand détail</h2>
+      <p>Le détail prend la page. L'arbre se réduit à la branche de la tâche, dans une colonne étroite qui permet de passer aux frères et sœurs. Les quatre valeurs clés tiennent sur une ligne, puis la description et l'activité ont la largeur d'un texte.</p>
+      <ul>
+        <li><b>Pour :</b> la place qu'il faut pour écrire une description ou un commentaire en markdown (#12, #13).</li>
+        <li><b>Contre :</b> on quitte la vue d'ensemble. Parcourir vingt tâches d'affilée devient plus lent qu'avec le panneau.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+</body></html>

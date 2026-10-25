@@ -1,6 +1,7 @@
 import type { TaskNode } from '@openpatatoes/shared'
 import { describe, expect, it } from 'vitest'
-import { countTasks, visibleTaskRows } from '@/features/tasks/tasks'
+import { dueHint, formatDay, formatFullDay, formatHours } from '@/features/tasks/format'
+import { countTasks, taskPath, visibleTaskRows } from '@/features/tasks/tasks'
 
 function task(id: number, children: TaskNode[] = []): TaskNode {
   return {
@@ -94,5 +95,47 @@ describe('lignes visibles de l\'arbre', () => {
 
   it('compte les tâches à tous les niveaux', () => {
     expect(countTasks(tree)).toBe(6)
+  })
+})
+
+describe('chemin d\'une tâche dans l\'arbre', () => {
+  it('va de la racine à la tâche, la tâche comprise', () => {
+    expect(taskPath(tree, 4)?.map(task => task.id)).toEqual([1, 2, 4])
+    expect(taskPath(tree, 6)?.map(task => task.id)).toEqual([6])
+  })
+
+  it('vaut null pour une tâche absente de l\'arbre', () => {
+    expect(taskPath(tree, 99)).toBeNull()
+  })
+})
+
+describe('affichage des heures', () => {
+  it('écrit les heures décimales à la française, au centième au plus', () => {
+    expect(formatHours(12.5)).toBe('12,5\u202Fh')
+    expect(formatHours(8)).toBe('8\u202Fh')
+    expect(formatHours(0.25)).toBe('0,25\u202Fh')
+    expect(formatHours(1 / 3)).toBe('0,33\u202Fh')
+    expect(formatHours(1234.5)).toBe('1\u202F234,5\u202Fh')
+  })
+})
+
+describe('affichage des dates', () => {
+  const now = new Date(2026, 9, 25, 14, 30)
+
+  it('écrit un jour court, avec l\'année seulement si ce n\'est pas l\'année en cours', () => {
+    expect(formatDay('2026-10-31', now)).toBe('31 oct.')
+    expect(formatDay('2027-01-05', now)).toBe('5 janv. 2027')
+  })
+
+  it('écrit le jour complet pour l\'infobulle', () => {
+    expect(formatFullDay('2026-10-31')).toBe('samedi 31 octobre 2026')
+  })
+
+  it('situe l\'échéance par rapport au jour local, quelle que soit l\'heure', () => {
+    expect(dueHint('2026-10-25', now)).toEqual({ text: 'aujourd\'hui', overdue: false })
+    expect(dueHint('2026-10-26', now)).toEqual({ text: 'demain', overdue: false })
+    expect(dueHint('2026-10-31', now)).toEqual({ text: 'dans 6 jours', overdue: false })
+    expect(dueHint('2026-10-24', now)).toEqual({ text: 'en retard d\'un jour', overdue: true })
+    expect(dueHint('2026-10-20', now)).toEqual({ text: 'en retard de 5 jours', overdue: true })
   })
 })

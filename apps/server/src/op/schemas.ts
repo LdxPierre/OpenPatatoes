@@ -1,4 +1,4 @@
-import type { TaskDetail } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskDetail } from '@openpatatoes/shared'
 import { z } from 'zod'
 import { isoDurationToHours } from './duration.js'
 
@@ -109,22 +109,51 @@ const opDurationAsHoursSchema = z
     return hours
   })
 
+/** Jour ISO (`2026-10-31`) ; `null` (ou absent) si non renseigné. */
+const opDateSchema = z.iso.date().nullish().transform(date => date ?? null)
+
 /**
  * Tâche lue pour son détail. Schéma distinct de la liste : une durée inexploitable
  * sur une tâche ne doit pas faire échouer l'arbre de tout le projet.
+ * Le statut n'a que son nom : la route y ajoute `isClosed` depuis la liste des statuts.
+ * `spentTime` n'est présent que si le jeton a le droit de voir le temps passé.
+ * Un jalon n'a qu'une date (`date`) : elle sert de début et d'échéance.
  */
 export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
   .extend({
     estimatedTime: opDurationAsHoursSchema,
     remainingTime: opDurationAsHoursSchema,
+    spentTime: opDurationAsHoursSchema,
+    startDate: opDateSchema,
+    dueDate: opDateSchema,
+    date: opDateSchema,
+    _links: opWorkPackageBaseSchema.shape._links.extend({
+      status: opResourceLinkSchema,
+      type: opResourceLinkSchema,
+      priority: opOptionalLinkSchema,
+      assignee: opOptionalLinkSchema,
+      responsible: opOptionalLinkSchema,
+      version: opOptionalLinkSchema,
+      category: opOptionalLinkSchema,
+    }),
   })
-  .transform(({ id, subject, estimatedTime, remainingTime, _links }) => ({
+  .transform(({ id, subject, estimatedTime, remainingTime, spentTime, startDate, dueDate, date, _links }) => ({
     id,
     subject,
+    status: _links.status,
+    type: _links.type,
+    priority: _links.priority,
+    assignee: _links.assignee,
+    responsible: _links.responsible,
     estimatedHours: estimatedTime,
     remainingHours: remainingTime,
+    spentHours: spentTime,
+    startDate: startDate ?? date,
+    dueDate: dueDate ?? date,
+    version: _links.version,
+    category: _links.category,
     parent: _links.parent && { id: _links.parent.id, subject: _links.parent.name },
-  }) satisfies TaskDetail)
+  }) satisfies Omit<TaskDetail, 'status'> & { status: OpNamedRef })
 
 export type OpWorkPackageDetail = z.output<typeof opWorkPackageDetailSchema>
 

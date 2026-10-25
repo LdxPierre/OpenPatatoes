@@ -1,6 +1,6 @@
-import type { TaskNode } from '@openpatatoes/shared'
+import type { TaskDetail, TaskNode } from '@openpatatoes/shared'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { forEachTask, taskDetailResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
 import { useQuery } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
@@ -21,6 +21,57 @@ export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
     select: data => data.tasks,
     shallow: true,
   })
+}
+
+/** Détail d'une tâche, lu dans OP. */
+export function useTaskDetailQuery(taskId: MaybeRefOrGetter<number>) {
+  return useQuery({
+    queryKey: computed(() => [
+      'tasks',
+      toValue(taskId),
+    ]),
+    queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}`, { schema: taskDetailResponseSchema, signal }),
+    select: data => data.task,
+  })
+}
+
+/** Ce que l'arbre du projet sait déjà d'une tâche : de quoi afficher l'en-tête du détail avant la réponse d'OP. */
+export type TaskPreview = Pick<TaskDetail, 'id' | 'subject' | 'status' | 'assignee' | 'parent'> & {
+  children: TaskNode[]
+}
+
+export function taskPreview(roots: TaskNode[], id: number): TaskPreview | null {
+  const path = taskPath(roots, id)
+  if (!path)
+    return null
+  const task = path.at(-1)!
+  const parent = path.at(-2)
+  return {
+    id: task.id,
+    subject: task.subject,
+    status: task.status,
+    assignee: task.assignee,
+    parent: parent
+      ? { id: parent.id, subject: parent.subject }
+      : null,
+    children: task.children,
+  }
+}
+
+/**
+ * Chemin de la racine jusqu'à la tâche, la tâche comprise ; `null` si elle n'est pas dans l'arbre.
+ * Le parcours est itératif, comme la construction de l'arbre côté serveur.
+ */
+export function taskPath(roots: TaskNode[], id: number): TaskNode[] | null {
+  const stack = roots.map(task => [task])
+  for (let path = stack.pop(); path; path = stack.pop()) {
+    const task = path.at(-1)!
+    if (task.id === id)
+      return path
+    for (const child of task.children)
+      stack.push([...path, child])
+  }
+  return null
 }
 
 /** Ligne visible de l'arbre, à plat pour la virtualisation. */
