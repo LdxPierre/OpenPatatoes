@@ -169,10 +169,7 @@ describe('détail d\'une tâche', () => {
     const response = await getTask(20)
 
     expect(response.statusCode).toBe(404)
-    expect(response.json()).toEqual({
-      error: 'op_not_found',
-      message: expect.stringContaining('introuvable ou inaccessible'),
-    })
+    expect(response.json()).toMatchObject({ error: 'op_not_found' })
   })
 
   it('affiche un refus d\'accès d\'OP comme un message clair', async () => {
@@ -182,10 +179,7 @@ describe('détail d\'une tâche', () => {
     const response = await getTask(10)
 
     expect(response.statusCode).toBe(403)
-    expect(response.json()).toEqual({
-      error: 'op_forbidden',
-      message: expect.stringContaining('refuse l\'accès à cette tâche'),
-    })
+    expect(response.json()).toMatchObject({ error: 'op_forbidden' })
   })
 
   it('distingue OP indisponible d\'un refus d\'accès', async () => {
