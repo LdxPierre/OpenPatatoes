@@ -1,26 +1,33 @@
 <script setup lang="ts">
+import type { TaskNode } from '@openpatatoes/shared'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { onKeyStroke } from '@vueuse/core'
 import { computed, onMounted, useTemplateRef, watch } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
+import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
-import { formatHours, useTaskDetailQuery } from './tasks'
+import { dueHint, formatDay, formatFullDay, formatHours } from './format'
+import { taskPreview, useTaskDetailQuery } from './tasks'
 
 /**
  * Détail d'une tâche, à côté de l'arbre du projet. Le parent est relié au titre
- * par un coude, comme dans l'arbre.
+ * par un coude, comme dans l'arbre ; les sous-tâches en partent de la même façon.
  */
 const props = defineProps<{
   projectId: number
   taskId: number
+  /** Arbre du projet : de quoi afficher l'en-tête et les sous-tâches sans attendre OP. */
+  tree?: TaskNode[]
   /** Sur petit écran, le panneau recouvre l'arbre : il prend le focus, comme une fenêtre. */
   covering?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
 
-const detail = useTaskDetailQuery(() => props.projectId, () => props.taskId)
-const task = computed(() => detail.data.value)
+const detail = useTaskDetailQuery(() => props.taskId)
+const preview = computed(() => props.tree && taskPreview(props.tree, props.taskId))
+/** En-tête : la réponse d'OP, ou ce que l'arbre sait déjà de la tâche. */
+const header = computed(() => detail.data.value ?? preview.value)
 
 onKeyStroke('Escape', () => emit('close'))
 
@@ -34,15 +41,125 @@ function takeFocus() {
 onMounted(takeFocus)
 watch(() => [props.taskId, props.covering], takeFocus, { flush: 'post' })
 
-/** Titre et parent viennent de l'arbre en attendant OP ; les heures, seulement d'OP. */
-const hoursPending = computed(() => detail.isPlaceholderData.value)
+const hours = computed(() => {
+  const task = detail.data.value
+  if (!task)
+    return []
+  return [
+    { label: 'Estimé', value: task.estimatedHours },
+    { label: 'Restant', value: task.remainingHours },
+    // Sans droit de voir le temps passé, OP ne le donne pas : on n'en parle pas.
+    ...(task.spentHours === null
+      ? []
+      : [
+          { label: 'Passé', value: task.spentHours },
+        ]),
+  ]
+})
 
-const hours = computed(() => task.value
-  ? [
-      { label: 'Temps estimé', value: task.value.estimatedHours },
-      { label: 'Temps restant', value: task.value.remainingHours },
+interface Field {
+  label: string
+  value: string
+  /** Infobulle : la valeur complète quand l'affichage est abrégé. */
+  title?: string
+  hint?: { text: string, overdue: boolean }
+  /** Les valeurs longues prennent toute la largeur ; les courtes vont par deux. */
+  column: 'wide' | 'left' | 'right'
+}
+
+/** Propriétés renseignées, dans l'ordre d'affichage. Une propriété vide n'est pas affichée. */
+const fields = computed<Field[]>(() => {
+  const task = detail.data.value
+  if (!task)
+    return []
+  const due = task.dueDate && !task.status.isClosed
+    ? dueHint(task.dueDate)
+    : undefined
+  const pair = (left?: Omit<Field, 'column'>, right?: Omit<Field, 'column'>): Field[] => [
+    ...(left
+      ? [
+          { ...left, column: 'left' as const },
+        ]
+      : []),
+    ...(right
+      ? [
+          {
+            ...right,
+            column: left ? 'right' as const : 'left' as const,
+          },
+        ]
+      : []),
+  ]
+  return [
+    ...(task.responsible
+      ? [
+          { label: 'Responsable', value: task.responsible.name, column: 'wide' as const },
+        ]
+      : []),
+    ...datesField(task.startDate, task.dueDate, due),
+    ...pair(
+      { label: 'Type', value: task.type.name },
+      task.priority
+        ? { label: 'Priorité', value: task.priority.name }
+        : undefined,
+    ),
+    ...(task.version
+      ? [
+          { label: 'Version', value: task.version.name, column: 'wide' as const },
+        ]
+      : []),
+    ...(task.category
+      ? [
+          { label: 'Catégorie', value: task.category.name, column: 'wide' as const },
+        ]
+      : []),
+  ]
+})
+
+/** Début et échéance sur une ligne : « 6 oct. → 31 oct. », suivie de l'échéance relative. */
+function datesField(start: string | null, due: string | null, hint: Field['hint']): Field[] {
+  if (start && due) {
+    return [
+      {
+        label: 'Dates',
+        value: `${formatDay(start)} → ${formatDay(due)}`,
+        title: `Du ${formatFullDay(start)} au ${formatFullDay(due)}`,
+        hint,
+        column: 'wide',
+      },
     ]
-  : [])
+  }
+  if (due) {
+    return [
+      {
+        label: 'Échéance',
+        value: formatDay(due),
+        title: formatFullDay(due),
+        hint,
+        column: 'wide',
+      },
+    ]
+  }
+  if (start) {
+    return [
+      {
+        label: 'Début',
+        value: formatDay(start),
+        title: formatFullDay(start),
+        column: 'wide',
+      },
+    ]
+  }
+  return []
+}
+
+const subtasks = computed(() => preview.value?.children ?? [])
+const closedSubtasks = computed(() => {
+  const closed = subtasks.value.filter(child => child.status.isClosed).length
+  return `${closed} sur ${subtasks.value.length} ${closed > 1
+    ? 'fermées'
+    : 'fermée'}`
+})
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject refuse l\'accès à cette tâche avec votre jeton. Vérifiez vos droits sur son projet dans OpenProject.',
@@ -57,61 +174,90 @@ const errorMessages: OpErrorMessages = {
     class="task-detail"
     :role="covering ? 'dialog' : undefined"
     :aria-modal="covering || undefined"
-    :aria-labelledby="task ? 'task-detail-title' : undefined"
-    :aria-label="task ? undefined : 'Détail de la tâche'"
+    :aria-labelledby="header ? 'task-detail-title' : undefined"
+    :aria-label="header ? undefined : 'Détail de la tâche'"
   >
     <div class="head">
-      <p v-if="detail.isPending.value" class="muted" role="status">
-        Ouverture de la tâche…
-      </p>
-
-      <div v-else-if="task" class="lineage">
-        <RouterLink
-          v-if="task.parent"
-          class="parent"
-          :to="{ name: 'task', params: { id: projectId, taskId: task.parent.id } }"
-        >
-          <span class="sr-only">Tâche parente : </span>{{ task.parent.subject }}
-        </RouterLink>
-        <h2 id="task-detail-title" :class="{ child: task.parent }">
-          {{ task.subject }}
-        </h2>
-      </div>
+      <RouterLink
+        v-if="header?.parent"
+        class="parent"
+        :to="{ name: 'task', params: { id: projectId, taskId: header.parent.id } }"
+      >
+        <span class="sr-only">Tâche parente : </span>{{ header.parent.subject }}
+      </RouterLink>
 
       <Button ref="closeButton" variant="ghost" size="icon" class="close" aria-label="Fermer le détail" @click="emit('close')">
         <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
           <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
       </Button>
+
+      <template v-if="header">
+        <h2 id="task-detail-title" :class="{ child: header.parent }">
+          {{ header.subject }}
+        </h2>
+        <p class="summary">
+          <StatusBadge :status="header.status" />
+          <span v-if="header.assignee">{{ header.assignee.name }}</span>
+          <span class="ref op-num">#{{ header.id }}</span>
+        </p>
+      </template>
+
+      <p v-else-if="detail.isPending.value" class="muted opening" role="status">
+        Ouverture de la tâche…
+      </p>
     </div>
 
-    <OpErrorAlert
-      v-if="detail.error.value"
-      :error="detail.error.value"
-      :messages="errorMessages"
-      :retrying="detail.isFetching.value"
-      @retry="detail.refetch()"
-    />
+    <div v-if="detail.error.value" class="section error">
+      <OpErrorAlert
+        :error="detail.error.value"
+        :messages="errorMessages"
+        :retrying="detail.isFetching.value"
+        @retry="detail.refetch()"
+      />
+    </div>
 
-    <template v-else-if="task">
-      <p class="ref op-num">
-        #{{ task.id }}
-      </p>
+    <template v-else-if="header">
+      <section class="section" aria-label="Temps et propriétés" :aria-busy="detail.isPending.value">
+        <p v-if="detail.isPending.value" class="muted" role="status">
+          Chargement des heures et des propriétés…
+        </p>
+        <template v-else>
+          <dl class="hours">
+            <div v-for="item in hours" :key="item.label" class="hour">
+              <dt>{{ item.label }}</dt>
+              <dd v-if="item.value === null" class="empty">
+                Non renseigné
+              </dd>
+              <dd v-else class="op-num">
+                {{ formatHours(item.value) }}
+              </dd>
+            </div>
+          </dl>
+          <dl class="fields">
+            <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
+              <dt>{{ field.label }}</dt>
+              <dd :title="field.title">
+                {{ field.value }}<span v-if="field.hint" class="hint" :class="{ overdue: field.hint.overdue }">{{ field.hint.text }}</span>
+              </dd>
+            </div>
+          </dl>
+        </template>
+      </section>
 
-      <dl class="hours" :aria-busy="hoursPending">
-        <div v-for="item in hours" :key="item.label" class="hour">
-          <dt>{{ item.label }}</dt>
-          <dd v-if="hoursPending" class="pending">
-            …
-          </dd>
-          <dd v-else-if="item.value === null" class="empty">
-            Non renseigné
-          </dd>
-          <dd v-else class="value op-num">
-            {{ formatHours(item.value) }}
-          </dd>
-        </div>
-      </dl>
+      <section v-if="subtasks.length" class="section" aria-labelledby="subtasks-title">
+        <h3 id="subtasks-title">
+          Sous-tâches <span class="count op-num">{{ closedSubtasks }}</span>
+        </h3>
+        <ul class="subtasks">
+          <li v-for="child in subtasks" :key="child.id">
+            <RouterLink :to="{ name: 'task', params: { id: projectId, taskId: child.id } }" class="subtask" :title="child.subject">
+              {{ child.subject }}
+            </RouterLink>
+            <StatusBadge :status="child.status" />
+          </li>
+        </ul>
+      </section>
     </template>
   </aside>
 </template>
@@ -121,50 +267,43 @@ const errorMessages: OpErrorMessages = {
   /* Coude du parent vers le titre : même trait et même retrait que dans l'arbre. */
   --lineage-gap: var(--op-space-1);
   --elbow-x: 0.375rem;
+  /* Libellé des propriétés : même largeur partout, pour que les valeurs s'alignent. */
+  --field-label: 4.75rem;
 
   position: sticky;
   top: var(--op-space-4);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--op-space-3);
   max-height: calc(100vh - 2 * var(--op-space-4));
   overflow-y: auto;
   box-sizing: border-box;
-  padding: 0 0 var(--op-space-4) var(--op-space-6);
   border-left: 1px solid var(--p-app-line);
 }
 
 .head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--op-space-3);
-  align-self: stretch;
-}
-
-.close {
-  margin: calc(-1 * var(--op-space-1)) calc(-1 * var(--op-space-2)) 0 auto;
-  color: var(--p-text-muted-color);
-}
-
-.lineage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--lineage-gap);
-  min-width: 0;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--lineage-gap) var(--op-space-2);
+  padding: 0 0 var(--op-space-4) var(--op-space-6);
 }
 
 .parent {
-  align-self: flex-start;
-  max-width: 100%;
+  grid-column: 1;
+  min-width: 0;
   font-size: var(--op-text-sm);
   font-weight: 500;
   color: var(--p-primary-color);
   overflow-wrap: anywhere;
 }
 
+.close {
+  grid-column: 2;
+  grid-row: 1;
+  margin: calc(-1 * var(--op-space-1)) calc(-1 * var(--op-space-2)) 0 0;
+  color: var(--p-text-muted-color);
+}
+
 h2 {
+  grid-column: 1;
   margin: 0;
   font-size: var(--op-text-xl);
   color: var(--p-text-color);
@@ -190,16 +329,30 @@ h2.child::before {
   border-bottom-left-radius: var(--p-border-radius-md);
 }
 
+.summary {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--op-space-2) var(--op-space-3);
+  margin: var(--op-space-2) 0 0;
+  font-size: var(--op-text-sm);
+}
+
+h2.child ~ .summary {
+  padding-left: calc(var(--p-app-tree-indent) + var(--op-space-1));
+}
+
 .ref,
 .muted,
 .empty,
-.pending,
-dt {
+dt,
+.count,
+.hint {
   color: var(--p-text-muted-color);
 }
 
 .ref {
-  margin: calc(-1 * var(--op-space-2)) 0 0;
   font-size: var(--op-text-xs);
 }
 
@@ -207,33 +360,174 @@ dt {
   margin: 0;
 }
 
-.hours {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--op-space-4) var(--op-space-10);
-  margin: var(--op-space-4) 0 0;
+.opening {
+  grid-column: 1;
 }
 
-dt {
-  font-size: var(--op-text-sm);
-  font-weight: 500;
+.section {
+  padding: var(--op-space-4) 0 var(--op-space-4) var(--op-space-6);
+  border-top: 1px solid var(--p-app-line);
 }
 
+dl,
 dd {
   margin: 0;
 }
 
-/* Les heures sont ce qu'on vient lire : à la taille du titre, chiffres de même largeur. */
-.value,
-.pending {
-  font-size: var(--op-text-xl);
-  font-weight: 500;
-  line-height: 1.3;
+dt {
+  font-size: var(--op-text-xs);
 }
 
-.empty {
+/* Les trois heures sur une ligne : ce qu'on vient lire en premier. */
+.hours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--op-space-1) var(--op-space-5);
+  margin-bottom: var(--op-space-2);
+}
+
+.hour {
+  display: flex;
+  align-items: baseline;
+  gap: var(--op-space-2);
+}
+
+.hour dd {
+  font-size: var(--op-text-lg);
+  font-weight: 500;
+}
+
+.hour dd.empty {
+  font-size: var(--op-text-sm);
+  font-weight: 400;
+}
+
+/* Une propriété par ligne de 28 px, libellé et valeur côte à côte. */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--op-space-3);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--op-space-2);
+  min-width: 0;
+  height: 1.75rem;
+}
+
+.field.wide {
+  grid-column: 1 / -1;
+}
+
+.field.left {
+  grid-column: 1;
+}
+
+.field.right {
+  grid-column: 2;
+}
+
+.field dt {
+  flex: none;
+}
+
+.field.wide dt,
+.field.left dt {
+  width: var(--field-label);
+}
+
+.field dd {
+  min-width: 0;
+  font-size: var(--op-text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  margin-left: var(--op-space-2);
+  font-size: var(--op-text-xs);
+}
+
+.hint.overdue {
+  color: var(--p-app-error-color);
+}
+
+h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--op-space-2);
+  margin: 0 0 var(--op-space-2);
+  font-size: var(--op-text-sm);
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+.count {
+  font-size: var(--op-text-xs);
+  font-weight: 400;
+}
+
+/* Sous-tâches : les traits de racine de l'arbre, un coude pour la dernière. */
+.subtasks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subtasks li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--op-space-3);
+  height: var(--p-app-tree-row-height);
+  padding-left: var(--p-app-tree-indent);
+}
+
+.subtasks li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--elbow-x);
+  width: calc(var(--p-app-tree-indent) - var(--elbow-x) - var(--op-space-1));
+  box-sizing: border-box;
+  border-left: var(--p-app-tree-guide-width) solid var(--p-app-tree-guide);
+}
+
+.subtasks li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - var(--p-app-tree-guide-width) / 2);
+  left: var(--elbow-x);
+  width: calc(var(--p-app-tree-indent) - var(--elbow-x) - var(--op-space-1));
+  height: var(--p-app-tree-guide-width);
+  background: var(--p-app-tree-guide);
+}
+
+.subtasks li:last-child::before {
+  bottom: 50%;
+  border-bottom: var(--p-app-tree-guide-width) solid var(--p-app-tree-guide);
+  border-bottom-left-radius: var(--p-border-radius-md);
+}
+
+.subtask {
+  flex: 1;
+  min-width: 0;
   font-size: var(--op-text-md);
-  line-height: calc(var(--op-text-xl) * 1.3);
+  color: var(--p-text-color);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subtask:hover {
+  color: var(--p-primary-color);
+  text-decoration: underline;
 }
 
 /* Sur petit écran, le détail recouvre l'arbre ; le fermer y ramène. */
@@ -246,6 +540,11 @@ dd {
     padding: var(--op-space-4) var(--op-space-6) var(--op-space-6);
     border-left: 0;
     background: var(--p-app-background);
+  }
+
+  .head,
+  .section {
+    padding-left: 0;
   }
 }
 </style>

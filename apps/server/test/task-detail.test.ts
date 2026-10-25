@@ -5,7 +5,7 @@ import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { users } from '../src/db/schema.js'
 import { buildTestApp, connectAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
-import { startFakeOp } from './support/fake-op.js'
+import { FAKE_STATUSES, startFakeOp } from './support/fake-op.js'
 
 const alice = { username: 'alice', password: 'mot-de-passe-alice' }
 
@@ -65,11 +65,96 @@ describe('détail d\'une tâche', () => {
       task: {
         id: 11,
         subject: 'Enfant',
+        status: { id: FAKE_STATUSES.new.id, name: 'New', isClosed: false },
+        type: { id: 1, name: 'Task' },
+        priority: { id: 8, name: 'Normal' },
+        assignee: null,
+        responsible: null,
         estimatedHours: 2.5,
         remainingHours: 0.75,
+        spentHours: 0,
+        startDate: null,
+        dueDate: null,
+        version: null,
+        category: null,
         parent: { id: 10, subject: 'Parent' },
       },
     })
+  })
+
+  it('renvoie les propriétés de la tâche', async () => {
+    const opBob = op.addUser({ name: 'Bob OP', token: 'tok-bob' })
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Tâche',
+      statusId: FAKE_STATUSES.inProgress.id,
+      assigneeId: opAlice.id,
+      responsibleId: opBob.id,
+      spentTime: 'PT11H',
+      startDate: '2026-10-06',
+      dueDate: '2026-10-31',
+      type: { id: 4, name: 'Feature' },
+      priority: { id: 9, name: 'High' },
+      version: { id: 2, name: 'POC 0.1' },
+      category: { id: 3, name: 'Authentification' },
+    })
+
+    const response = await getTask(10)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().task).toMatchObject({
+      status: { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
+      type: { id: 4, name: 'Feature' },
+      priority: { id: 9, name: 'High' },
+      assignee: { id: opAlice.id, name: 'Alice OP' },
+      responsible: { id: opBob.id, name: 'Bob OP' },
+      spentHours: 11,
+      startDate: '2026-10-06',
+      dueDate: '2026-10-31',
+      version: { id: 2, name: 'POC 0.1' },
+      category: { id: 3, name: 'Authentification' },
+    })
+  })
+
+  it('dit si l\'état de la tâche est fermé, même pour un statut ajouté dans OP', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Livrée',
+      statusId: FAKE_STATUSES.delivered.id,
+    })
+
+    const response = await getTask(10)
+
+    expect(response.json().task.status).toEqual({ id: FAKE_STATUSES.delivered.id, name: 'Delivered', isClosed: true })
+  })
+
+  it('prend la date d\'un jalon comme début et comme échéance', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Mise en production',
+      date: '2026-11-15',
+    })
+
+    const response = await getTask(10)
+
+    expect(response.json().task).toMatchObject({ startDate: '2026-11-15', dueDate: '2026-11-15' })
+  })
+
+  it('renvoie un temps passé nul quand OP le masque au jeton', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Tâche',
+      spentTime: null,
+    })
+
+    const response = await getTask(10)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().task.spentHours).toBeNull()
   })
 
   it('renvoie des temps nuls et aucun parent pour une tâche racine sans estimation', async () => {
@@ -150,6 +235,7 @@ describe('détail d\'une tâche', () => {
         remainingTime: null,
         _links: {
           status: { href: '/api/v3/statuses/1', title: 'New' },
+          type: { href: '/api/v3/types/1', title: 'Task' },
           assignee: { href: null },
           parent: { href: null },
         },

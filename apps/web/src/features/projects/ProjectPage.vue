@@ -125,7 +125,7 @@ const taskErrorMessages: OpErrorMessages = {
           />
         </div>
 
-        <RouterView :covering="detailCovers" @close="closeTask" />
+        <RouterView :tree="tasks.data.value" :covering="detailCovers" @close="closeTask" />
       </div>
     </template>
   </main>

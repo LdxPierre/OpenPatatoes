@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  .wrap{display:grid;gap:24px;font-family:var(--font-sans);color:var(--foreground)}
+  .lede{margin:0;max-width:66ch;font-size:14px;line-height:1.55;color:var(--muted-foreground)}
+  .lede b{color:var(--foreground);font-weight:600}
+  ul.lede{padding-left:18px}
+  ul.lede li{margin:3px 0}
+  h2.sec-title{font-size:16px;margin:0 0 4px}
+  .sub{margin:0 0 12px;font-size:13.5px;color:var(--muted-foreground)}
+  .solo{max-width:380px}
+
+  .op{
+    --bg:#FAF9FB; --surface:#FFFFFF; --text:#2A2530; --muted:#6B6375; --line:#E7E2EC;
+    --brand:#4A2B5E; --brand-fg:#FFFFFF; --sel:#EFE7F5; --hover:#F4F0F7; --guide:#CDBDDA; --field:#8E8599;
+    --s-new-bg:#EEEBF1; --s-new:#5A5363; --s-plan-bg:#E3EBF6; --s-plan:#2D4F7C;
+    --s-run-bg:#EADFF3; --s-run:#4A2B5E; --s-wait-bg:#F7EACB; --s-wait:#7A5200;
+    --s-done-bg:#DCEBDF; --s-done:#2F6A3C;
+    --lift:0 6px 18px rgba(74,43,94,.18);
+    background:var(--bg);color:var(--text);font-family:'Atkinson Hyperlegible Next',sans-serif;
+    border-radius:var(--radius);font-size:14px;line-height:1.5;overflow:hidden
+  }
+  .op *{box-sizing:border-box}
+  .op a{color:var(--brand);text-decoration:none;font-weight:500}
+  .op button{font:inherit;color:inherit;cursor:pointer}
+  .op :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .num{font-variant-numeric:tabular-nums}
+
+  .st{display:inline-flex;align-items:center;gap:6px;font-size:13px;line-height:1;padding:4px 8px 4px 6px;border-radius:999px;white-space:nowrap;background:var(--b);color:var(--c)}
+  .st:before{content:"";width:9px;height:9px;border-radius:50%;border:1.5px solid currentColor;flex:none;background:conic-gradient(currentColor var(--p), transparent 0)}
+  .new{--b:var(--s-new-bg);--c:var(--s-new);--p:0%}
+  .plan{--b:var(--s-plan-bg);--c:var(--s-plan);--p:25%}
+  .run{--b:var(--s-run-bg);--c:var(--s-run);--p:50%}
+  .wait{--b:var(--s-wait-bg);--c:var(--s-wait);--p:50%}
+  .wait:before{background:none;border-style:dashed}
+  .done{--b:var(--s-done-bg);--c:var(--s-done);--p:100%}
+
+  .topbar{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--line);font-size:13px}
+  .topbar .brand{font-weight:700;color:var(--brand)}
+  .topbar .crumbs{color:var(--muted)}
+  .screen{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px)}
+
+  /* ---- panneau, à droite de l'arbre ---- */
+  .panel{min-width:0;background:var(--surface);border-left:1px solid var(--line)}
+  .phead{position:sticky;top:0;z-index:1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;padding:16px 20px 0;background:var(--surface)}
+  .phead > a{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .elbow{position:relative;padding-left:24px}
+  .elbow:before{content:"";position:absolute;left:6px;top:-4px;width:14px;height:calc(4px + .65em * 1.3);border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:6px}
+  .phead h3{grid-column:1/-1;margin:0;font-size:20px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+  .close{width:32px;height:32px;margin:-6px -8px 0 0;display:grid;place-items:center;border:0;background:none;border-radius:6px;color:var(--muted)}
+  .close:hover{background:var(--hover)}
+  .summary{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0 0 24px;font-size:13px}
+  .summary .ref{color:var(--muted);font-size:12px}
+
+  /* Deux onglets seulement : ce qu'est la tâche, et ce qui lui est arrivé. */
+  .tabs{grid-column:1/-1;display:flex;gap:4px;margin:12px -8px 0;border-bottom:1px solid var(--line)}
+  .tab{position:relative;display:flex;align-items:center;gap:6px;height:36px;padding:0 8px;border:0;background:none;font-size:13px;font-weight:500;color:var(--muted)}
+  .tab:hover,.tab[aria-selected="true"]{color:var(--text)}
+  .tab[aria-selected="true"]:after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;border-radius:2px;background:var(--brand)}
+  .tab .n{font-size:12px;font-weight:400;color:var(--muted)}
+  .tab:focus-visible{outline-offset:-2px}
+  [role="tabpanel"][hidden],.feed li[hidden]{display:none}
+
+  .sec{padding:16px 20px}
+  .sec + .sec{border-top:1px solid var(--line)}
+  .sec h4{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px;font-size:13px;font-weight:500;color:var(--muted)}
+  .sec h4 .n{font-weight:400;font-size:12px}
+  .op .link{border:0;background:none;padding:0;font-size:13px;font-weight:500;color:var(--brand)}
+
+  /* Temps : une seule ligne, trois valeurs. Les heures gardent des chiffres de même largeur. */
+  .hours{display:flex;flex-wrap:wrap;gap:4px 20px;margin:0 0 10px}
+  .hours div{display:flex;align-items:baseline;gap:6px}
+  .hours span{font-size:12px;color:var(--muted)}
+  .hours b{font-size:16px;font-weight:500}
+
+  /* Propriétés : libellé et valeur sur la même ligne, 28 px par ligne.
+     Les valeurs courtes vont par deux, les longues prennent toute la largeur. */
+  .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px;margin:0 -6px}
+  .fields div{display:flex;align-items:center;gap:8px;height:28px;padding:0 6px;border-radius:6px;min-width:0}
+  .fields div.wide{grid-column:1/-1}
+  .fields div.wide dt,.fields div.left dt{width:76px;flex:none}
+  .fields dt{flex:none}
+  .fields div.editable:hover{background:var(--hover);cursor:text}
+  .fields dt{font-size:12px;color:var(--muted)}
+  .fields dd{margin:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fields .hint{font-size:12px;color:var(--muted)}
+
+  .md{font-size:14px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+  .md.open{display:block}
+  .md p{margin:0 0 8px}
+  .md ul{margin:0 0 8px;padding-left:20px}
+  .md code{font-size:13px;padding:1px 4px;border-radius:4px;background:var(--hover)}
+  .md-actions{display:flex;gap:16px;margin-top:6px}
+
+  .kid{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 44px;align-items:center;gap:10px;height:32px;padding:0 8px 0 28px;margin:0 -8px;border-radius:6px}
+  .kid:hover{background:var(--hover)}
+  .kid:before{content:"";position:absolute;left:14px;top:0;bottom:0;width:2px;background:var(--guide)}
+  .kid:not(:last-child):after{content:"";position:absolute;left:14px;top:50%;width:10px;height:2px;background:var(--guide)}
+  .kid:last-child:before{bottom:50%;width:10px;background:none;border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:6px}
+  .kid > span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kid .h{text-align:right;color:var(--muted);font-size:13px}
+
+  /* Activité : les commentaires sont lus, les modifications sont survolées.
+     Un trait de racine relie le fil, comme dans l'arbre. */
+  .feed-tools{display:flex;justify-content:space-between;align-items:center;margin:0 0 12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;padding:2px}
+  .seg button{height:24px;padding:0 8px;border:0;border-radius:4px;background:none;font-size:12px;font-weight:500;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:var(--sel);color:var(--text)}
+  .feed{position:relative;list-style:none;margin:0;padding:0}
+  .feed:before{content:"";position:absolute;left:11px;top:12px;bottom:12px;width:2px;background:var(--guide)}
+  .feed li{position:relative;padding-left:34px}
+  .feed .mark{position:absolute;left:0;top:0;width:24px;height:24px;display:grid;place-items:center}
+
+  .comment{padding:2px 0 14px}
+  .comment .mark{border-radius:50%;background:var(--sel);color:var(--brand);font-size:10px;font-weight:700;box-shadow:0 0 0 3px var(--surface)}
+  .comment .meta{display:flex;align-items:baseline;gap:8px;height:24px}
+  .comment .who{font-size:13px;font-weight:500}
+  .comment p{margin:2px 0 0;font-size:14px;line-height:1.55}
+
+  /* Modification : une ligne discrète. Le détail et l'heure viennent au survol ou au focus. */
+  .change{display:flex;align-items:center;gap:8px;min-height:24px;margin:0 -6px 10px 0;padding:0 6px 0 34px;border-radius:6px;font-size:12.5px;color:var(--muted);outline:0}
+  .change .mark:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--surface);border:2px solid var(--guide)}
+  .change .what{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .change .what b{font-weight:500;color:var(--text)}
+  .change time{flex:none;font-size:12px;opacity:0}
+  .change:hover,.change:focus-visible,.change.demo{background:var(--hover)}
+  .change:hover time,.change:focus-visible time,.change.demo time{opacity:1}
+  .change:focus-visible{box-shadow:inset 0 0 0 2px var(--brand)}
+  .pop{position:absolute;z-index:2;left:34px;right:0;top:calc(100% + 2px);display:none;padding:8px 10px;border-radius:8px;background:var(--surface);box-shadow:var(--lift);font-size:13px;color:var(--text)}
+  .change:hover .pop,.change:focus-visible .pop,.change.demo .pop{display:grid;gap:4px}
+  .pop div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px}
+  .pop span{color:var(--muted);font-size:12px}
+  .pop s{color:var(--muted);text-decoration-color:var(--field)}
+
+  .older{display:flex;align-items:center;gap:8px;min-height:24px;margin:0 0 10px;padding-left:34px;position:relative}
+  .older .mark:before{content:"";width:8px;height:8px;border-radius:50%;border:2px dashed var(--guide);background:var(--surface)}
+
+  .composer{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;align-items:start;margin-top:6px}
+  .composer .mark{position:static;width:24px;height:24px;border-radius:50%;background:var(--brand);color:var(--brand-fg);display:grid;place-items:center;font-size:10px;font-weight:700}
+  .composer textarea{font:inherit;font-size:13px;min-height:36px;height:36px;resize:vertical;padding:7px 10px;border:1px solid var(--field);border-radius:6px;background:var(--surface);color:var(--text)}
+  .composer textarea:focus{height:80px}
+  .composer .hint{grid-column:2;margin-top:-4px;font-size:12px;color:var(--muted)}
+
+  /* ---- arbre ---- */
+  .tree{padding:16px 20px;min-width:0}
+  .tree h1{margin:0 0 12px;font-size:20px;color:var(--brand);letter-spacing:-.01em;display:flex;align-items:baseline;gap:10px}
+  .tree h1 small{font-size:12px;font-weight:400;color:var(--muted)}
+  .rows{margin:0 -8px}
+  .row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:16px;height:32px;padding:0 8px;border-radius:6px}
+  .row.head{height:28px;font-size:13px;color:var(--muted);border-radius:0;box-shadow:inset 0 -1px var(--line);margin-bottom:4px}
+  .row.head span:first-child{padding-left:18px}
+  .row:not(.head):hover{background:var(--hover)}
+  .row.sel{background:var(--sel)}
+  .t{display:flex;align-items:center;min-width:0;height:100%}
+  .g{flex:none;height:100%;position:relative;width:calc(var(--d) * 20px)}
+  .g i{position:absolute;top:0;bottom:0;width:2px;background:var(--guide)}
+  .g i.e{bottom:50%;width:9px;background:none;border-left:2px solid var(--guide);border-bottom:2px solid var(--guide);border-bottom-left-radius:6px}
+  .car{flex:none;width:18px;text-align:center;color:var(--muted);font-size:11px}
+  .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .l0 .name{font-weight:700}
+
+  .solo .panel{border-left:0}
+  .solo .close{display:none}
+
+  @media (max-width:640px){
+    .screen{grid-template-columns:minmax(0,1fr)}
+    .tree{display:none}
+    .panel{border-left:0}
+  }
+</style></head>
+<body>
+<div class="wrap">
+  <p class="lede">L'arbre garde la gauche de l'écran et le détail s'ouvre à droite. L'activité passe dans son propre onglet. Tout le reste se lit dans l'onglet Détail, en une seule colonne.</p>
+
+  <div class="op" id="main">
+    <div class="topbar"><span class="brand">OpenPatatoes</span><span class="crumbs">WrapperOP</span></div>
+    <div class="screen">
+      <div class="tree">
+        <h1>WrapperOP <small class="num">46 tâches</small></h1>
+        <div class="rows">
+          <div class="row head"><span>Tâche</span><span>État</span></div>
+          <div class="row l0"><span class="t"><span class="car">⌄</span><span class="name">Refonte du portail client</span></span><span class="st run">En cours</span></div>
+          <div class="row sel"><span class="t"><span class="g" style="--d:1"><i style="left:8px"></i></span><span class="car">›</span><span class="name">Parcours de connexion</span></span><span class="st run">En cours</span></div>
+          <div class="row"><span class="t"><span class="g" style="--d:1"><i style="left:8px"></i></span><span class="car">›</span><span class="name">Espace documents</span></span><span class="st plan">Planifié</span></div>
+          <div class="row"><span class="t"><span class="g" style="--d:1"><i class="e" style="left:8px"></i></span><span class="car"></span><span class="name">Notifications par e-mail</span></span><span class="st wait">En attente</span></div>
+          <div class="row l0"><span class="t"><span class="car">›</span><span class="name">Connexion à OpenProject</span></span><span class="st done">Fermé</span></div>
+          <div class="row l0"><span class="t"><span class="car">›</span><span class="name">Liste hiérarchique des tâches</span></span><span class="st run">En cours</span></div>
+          <div class="row l0"><span class="t"><span class="car">›</span><span class="name">Détail d'une tâche</span></span><span class="st new">Nouveau</span></div>
+          <div class="row l0"><span class="t"><span class="car">›</span><span class="name">Édition, performances et conflits</span></span><span class="st new">Nouveau</span></div>
+          <div class="row l0"><span class="t"><span class="car">›</span><span class="name">Erreurs</span></span><span class="st new">Nouveau</span></div>
+        </div>
+      </div>
+
+      <aside class="panel" aria-labelledby="t-title">
+        <div class="phead">
+          <a href="#">Refonte du portail client</a>
+          <button class="close" aria-label="Fermer le détail">✕</button>
+          <h3 id="t-title" class="elbow">Parcours de connexion</h3>
+          <div class="summary"><span class="st run">En cours</span><span>Camille Roux</span><span class="ref num">#84</span></div>
+          <div class="tabs" role="tablist" aria-label="Contenu du détail">
+            <button class="tab" role="tab" id="tab-detail" aria-controls="p-detail" aria-selected="true">Détail</button>
+            <button class="tab" role="tab" id="tab-feed" aria-controls="p-feed" aria-selected="false" tabindex="-1">Activité <span class="n num">12</span></button>
+          </div>
+        </div>
+
+        <div role="tabpanel" id="p-detail" aria-labelledby="tab-detail">
+          <section class="sec" aria-label="Temps et propriétés">
+            <div class="hours">
+              <div><span>Estimé</span><b class="num">16 h</b></div>
+              <div><span>Restant</span><b class="num">6,5 h</b></div>
+              <div><span>Passé</span><b class="num">11 h</b></div>
+            </div>
+            <dl class="fields">
+              <div class="editable wide"><dt>Responsable</dt><dd>Alex Martin</dd></div>
+              <div class="editable wide"><dt>Parent</dt><dd>Refonte du portail client</dd></div>
+              <div class="editable wide"><dt>Échéance</dt><dd class="num">31 octobre <span class="hint">dans 6 jours</span></dd></div>
+              <div class="wide"><dt>Catégorie</dt><dd>Authentification</dd></div>
+              <div class="left"><dt>Début</dt><dd class="num">6 oct.</dd></div>
+              <div><dt>Version</dt><dd>POC 0.1</dd></div>
+              <div class="left"><dt>Type</dt><dd>Fonctionnalité</dd></div>
+              <div><dt>Priorité</dt><dd>Haute</dd></div>
+            </dl>
+          </section>
+
+          <section class="sec" aria-labelledby="h-desc">
+            <h4 id="h-desc">Description</h4>
+            <div class="md" id="md">
+              <p>L'utilisateur se connecte avec un identifiant et un mot de passe, sans passer par OpenProject.</p>
+              <ul>
+                <li>Session conservée 7 jours, dans un cookie <code>httpOnly</code>.</li>
+                <li>Déconnexion depuis la barre du haut.</li>
+                <li>Mot de passe stocké haché, jamais en clair.</li>
+              </ul>
+              <p>Le jeton OpenProject se saisit après la première connexion. Sans jeton, aucune page privée n'est accessible.</p>
+            </div>
+            <div class="md-actions">
+              <button class="link more" aria-controls="md" aria-expanded="false">Afficher toute la description</button>
+              <button class="link">Modifier</button>
+            </div>
+          </section>
+
+          <section class="sec" aria-labelledby="h-kids">
+            <h4 id="h-kids">Sous-tâches <span class="n num">1 sur 3 fermée</span></h4>
+            <div>
+              <div class="kid"><span>Connexion par identifiant</span><span class="st done">Fermé</span><span class="h num">0 h</span></div>
+              <div class="kid"><span>Session conservée 7 jours</span><span class="st run">En cours</span><span class="h num">4 h</span></div>
+              <div class="kid"><span>Déconnexion</span><span class="st new">Nouveau</span><span class="h num">2,5 h</span></div>
+            </div>
+          </section>
+        </div>
+
+        <div role="tabpanel" id="p-feed" aria-labelledby="tab-feed" hidden>
+          <section class="sec">
+            <div class="feed-tools">
+              <div class="seg" role="group" aria-label="Afficher">
+                <button aria-pressed="true">Tout</button>
+                <button aria-pressed="false">Commentaires</button>
+              </div>
+            </div>
+            <ol class="feed">
+              <li class="older"><span class="mark" aria-hidden="true"></span><button class="link">Afficher 4 modifications plus anciennes</button></li>
+              <li class="comment">
+                <span class="mark" aria-hidden="true">AM</span>
+                <div class="meta"><span class="who">Alex Martin</span><time class="mut" title="14 octobre 2026 à 9 h 12" style="font-size:12px;color:var(--muted)">14 oct.</time></div>
+                <p>Pense à prévoir la déconnexion depuis tous les appareils, même si on ne la fait pas tout de suite.</p>
+              </li>
+              <li class="change demo" tabindex="0">
+                <span class="mark" aria-hidden="true"></span>
+                <span class="what"><b>Camille Roux</b> a modifié l'échéance</span>
+                <time title="20 octobre 2026 à 16 h 40">20 oct.</time>
+                <div class="pop"><div><span>Échéance</span><span style="color:var(--text);font-size:13px"><s>24 oct.</s> 31 oct.</span></div></div>
+              </li>
+              <li class="comment">
+                <span class="mark" aria-hidden="true">CR</span>
+                <div class="meta"><span class="who">Camille Roux</span><time title="24 octobre 2026 à 18 h 05" style="font-size:12px;color:var(--muted)">hier</time></div>
+                <p>La connexion par identifiant est livrée. Il reste la session et la déconnexion.</p>
+              </li>
+              <li class="change" tabindex="0">
+                <span class="mark" aria-hidden="true"></span>
+                <span class="what"><b>Camille Roux</b> a modifié le restant et l'état</span>
+                <time title="24 octobre 2026 à 18 h 07">hier</time>
+                <div class="pop">
+                  <div><span>Restant</span><span style="color:var(--text);font-size:13px" class="num"><s>9 h</s> 6,5 h</span></div>
+                  <div><span>État</span><span style="color:var(--text);font-size:13px"><s>Nouveau</s> En cours</span></div>
+                </div>
+              </li>
+            </ol>
+            <div class="composer">
+              <span class="mark" aria-hidden="true">AM</span>
+              <textarea aria-label="Commentaire" placeholder="Commenter"></textarea>
+              <span class="hint">Markdown accepté. Ctrl + Entrée pour envoyer.</span>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <section>
+    <h2 class="sec-title">L'onglet Activité</h2>
+    <p class="sub">Du plus ancien au plus récent, le champ de commentaire à la suite. La modification de l'échéance est montrée telle qu'au survol.</p>
+    <div class="solo" id="solo"></div>
+  </section>
+
+  <ul class="lede">
+    <li><b>Temps et propriétés compactés :</b> les trois heures tiennent sur une ligne, et chaque propriété garde son libellé sur la même ligne que sa valeur. La section passe d'environ 330 px à 200 px.</li>
+    <li><b>Commentaires au premier plan :</b> auteur, date et texte, sans bulle. Ce sont les seuls éléments du fil qu'on lit vraiment.</li>
+    <li><b>Modifications en une ligne :</b> qui a modifié quoi. Les valeurs avant et après, et l'heure, apparaissent au survol ou au focus clavier.</li>
+    <li><b>Historique ancien replié :</b> les modifications les plus anciennes se cachent derrière un lien. Le filtre « Commentaires » les masque toutes.</li>
+    <li><b>Date complète au survol :</b> le fil affiche « hier » ou « 14 oct. », l'infobulle donne le jour et l'heure.</li>
+    <li><b>Deux onglets seulement :</b> Détail dit ce qu'est la tâche, Activité dit ce qui lui est arrivé. On passe de l'un à l'autre sans chercher.</li>
+    <li><b>L'onglet reste ouvert d'une tâche à l'autre :</b> pour relire les derniers commentaires de plusieurs tâches, on reste sur Activité en parcourant l'arbre.</li>
+    <li><b>L'en-tête et les onglets restent collés en haut :</b> en défilant dans Détail, on peut toujours passer à Activité.</li>
+    <li><b>L'arbre garde sa place à gauche :</b> rien ne bouge quand le panneau s'ouvre ou se ferme, il perd seulement de la largeur à droite.</li>
+    <li><b>Petit écran :</b> le panneau prend tout l'écran, comme aujourd'hui.</li>
+  </ul>
+</div>
+
+<script>
+  function wire(root) {
+    const tabs = [...root.querySelectorAll('[role="tab"]')]
+    const select = (tab, focus) => {
+      for (const t of tabs) {
+        const on = t === tab
+        t.setAttribute('aria-selected', on)
+        t.tabIndex = on ? 0 : -1
+        root.querySelector('#' + t.getAttribute('aria-controls')).hidden = !on
+      }
+      if (focus) tab.focus()
+    }
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(tab))
+      tab.addEventListener('keydown', (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
+        if (step) { e.preventDefault(); select(tabs[(i + step + tabs.length) % tabs.length], true) }
+      })
+    })
+    root.querySelectorAll('.more').forEach((more) => {
+      more.addEventListener('click', () => {
+        const open = root.querySelector('#' + more.getAttribute('aria-controls')).classList.toggle('open')
+        more.setAttribute('aria-expanded', open)
+        more.textContent = open ? 'Réduire la description' : 'Afficher toute la description'
+      })
+    })
+    // Filtre du fil : « Commentaires » masque les modifications.
+    const seg = [...root.querySelectorAll('.seg button')]
+    seg.forEach(button => button.addEventListener('click', () => {
+      seg.forEach(b => b.setAttribute('aria-pressed', b === button))
+      const onlyComments = button.textContent === 'Commentaires'
+      root.querySelectorAll('.change, .older').forEach(el => { el.hidden = onlyComments })
+    }))
+    return select
+  }
+
+  const main = document.querySelector('#main')
+  wire(main)
+
+  // Le même panneau, ouvert sur Activité. Les identifiants sont rendus uniques.
+  const clone = main.querySelector('.panel').cloneNode(true)
+  clone.querySelectorAll('[id]').forEach(el => { el.id += '-2' })
+  ;[clone, ...clone.querySelectorAll('[aria-controls],[aria-labelledby]')].forEach((el) => {
+    for (const attr of ['aria-controls', 'aria-labelledby'])
+      if (el.hasAttribute(attr)) el.setAttribute(attr, el.getAttribute(attr) + '-2')
+  })
+  const box = document.createElement('div')
+  box.className = 'op'
+  box.append(clone)
+  document.querySelector('#solo').append(box)
+  wire(box)(box.querySelector('#tab-feed-2'))
+</script>
+</body></html>

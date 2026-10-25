@@ -151,3 +151,5 @@ Dans [`explorations/`](explorations/), gardées pour y revenir :
 - `a2-vitelotte.html` : version précédente, avec un cadre autour du tableau, jugée trop étroite.
 - `a-b-c-directions.html` : les trois directions de départ (Vitelotte, Établi, Carnet).
 - `kanban-vitelotte.html` : vue kanban faite pour mettre le design à l'épreuve. Ce n'est pas une fonctionnalité prévue.
+- `detail-tache-panneau-droite.html` : **détail d'une tâche retenu**. Panneau à droite de l'arbre, temps et propriétés compacts, activité dans un onglet à part.
+- `detail-tache.html`, `detail-tache-panneau-gauche.html`, `detail-tache-panneau-continu.html` : pistes écartées pour le détail (inspecteur, lignée, grand détail ; panneau à gauche, avec et sans onglets).

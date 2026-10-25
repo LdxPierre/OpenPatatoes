@@ -29,12 +29,14 @@ const opNamedRefSchema = z.object({
   name: z.string(),
 })
 
+const taskStatusSchema = opNamedRefSchema.extend({
+  isClosed: z.boolean(),
+})
+
 export const taskNodeSchema: z.ZodType<TaskNode> = z.object({
   id: z.number().int(),
   subject: z.string(),
-  status: opNamedRefSchema.extend({
-    isClosed: z.boolean(),
-  }),
+  status: taskStatusSchema,
   assignee: opNamedRefSchema.nullable(),
   get children() {
     return z.array(taskNodeSchema)
@@ -57,13 +59,25 @@ export const taskRefSchema = z.object({
 export type TaskRef = z.infer<typeof taskRefSchema>
 
 /**
- * Détail d'une tâche. Les durées sont en heures décimales, sans arrondi (l'interface
- * arrondit à l'affichage), et valent `null` si elles ne sont pas renseignées.
+ * Détail d'une tâche, en lecture. Les durées sont en heures décimales, sans arrondi
+ * (l'interface arrondit à l'affichage), et valent `null` si elles ne sont pas renseignées.
+ * `spentHours` vaut aussi `null` si le jeton n'a pas le droit de voir le temps passé.
+ * Les dates sont des jours au format ISO (`2026-10-31`), sans heure.
  * `parent` vaut `null` pour une tâche racine ou un parent invisible avec le jeton.
  */
 export const taskDetailSchema = taskRefSchema.extend({
+  status: taskStatusSchema,
+  type: opNamedRefSchema,
+  priority: opNamedRefSchema.nullable(),
+  assignee: opNamedRefSchema.nullable(),
+  responsible: opNamedRefSchema.nullable(),
   estimatedHours: z.number().nullable(),
   remainingHours: z.number().nullable(),
+  spentHours: z.number().nullable(),
+  startDate: z.iso.date().nullable(),
+  dueDate: z.iso.date().nullable(),
+  version: opNamedRefSchema.nullable(),
+  category: opNamedRefSchema.nullable(),
   parent: taskRefSchema.nullable(),
 })
 
