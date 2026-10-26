@@ -1,20 +1,22 @@
-import type { TaskDetail, TaskNode } from '@openpatatoes/shared'
+import type { TaskDetail, TaskNode, TaskStatus } from '@openpatatoes/shared'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parseHours } from '@/features/tasks/format'
-import { withAssignee } from '@/features/tasks/tasks'
+import { withTreeFields } from '@/features/tasks/tasks'
 import { ApiError } from '@/shared/api/api-fetch'
 import { fakeApi } from './support/fake-api'
 import { mountApp } from './support/mount-app'
 
 const camille = { id: 3, name: 'Camille Roux' }
 const bruno = { id: 4, name: 'Bruno Petit' }
+const nouveau: TaskStatus = { id: 1, name: 'Nouveau', isClosed: false }
+const enCours: TaskStatus = { id: 7, name: 'En cours', isClosed: false }
 
 function node(id: number, subject: string, children: TaskNode[] = []): TaskNode {
   return {
     id,
     subject,
-    status: { id: 1, name: 'Nouveau', isClosed: false },
+    status: nouveau,
     assignee: null,
     children,
   }
@@ -85,9 +87,32 @@ async function typeHours(wrapper: Wrapper, label: string, text: string) {
   await input.trigger('keydown', { key: 'Enter' })
 }
 
-function treeAssignee(wrapper: Wrapper, subject: string) {
+function treeRow(wrapper: Wrapper, subject: string) {
   const row = wrapper.findAll('[role="treeitem"]').find(item => item.find('.name').text() === subject)
-  return row?.find('.assignee').text()
+  if (!row)
+    throw new Error(`Ligne absente : ${subject}`)
+  return row
+}
+
+function treeAssignee(wrapper: Wrapper, subject: string) {
+  return treeRow(wrapper, subject).find('.assignee').text()
+}
+
+/** Bouton d'une liste de choix du détail : « Assigné », « État », « Type »… */
+function picker(wrapper: Wrapper, label: string) {
+  const button = wrapper.findAll('aside .trigger').find(item => item.attributes('aria-label')?.startsWith(`${label} :`))
+  if (!button)
+    throw new Error(`Liste absente : ${label}`)
+  return button
+}
+
+/** Choisit une valeur permise ; le choix dans la liste est couvert par les tests de bout en bout. */
+async function selectAllowedValue(wrapper: Wrapper, field: 'status' | 'type' | 'priority', value: object) {
+  const component = wrapper.findAllComponents({ name: 'TaskAllowedValuePicker' }).find(item => item.props('field') === field)
+  if (!component)
+    throw new Error(`Liste absente : ${field}`)
+  component.vm.$emit('save', { [field]: value })
+  await flushPromises()
 }
 
 describe('modification d\'une tâche', () => {
@@ -321,7 +346,7 @@ describe('modification d\'une tâche', () => {
     await flushPromises()
 
     expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, assigneeId: 4 })
-    expect(wrapper.find('aside .trigger').text()).toBe('Bruno Petit')
+    expect(picker(wrapper, 'Assigné').text()).toBe('Bruno Petit')
     expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Bruno Petit')
 
     answer.reject(new ApiError(422, 'op_rejected', {
@@ -331,9 +356,67 @@ describe('modification d\'une tâche', () => {
     }))
     await flushPromises()
 
-    expect(wrapper.find('aside .trigger').text()).toBe('Camille Roux')
-    expect(wrapper.find('aside .trigger').classes()).toContain('rejected')
+    expect(picker(wrapper, 'Assigné').text()).toBe('Camille Roux')
+    expect(picker(wrapper, 'Assigné').classes()).toContain('rejected')
     expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Camille Roux')
+  })
+
+  it('montre le nouvel état dans le détail et dans l\'arbre avant la réponse d\'OP', async () => {
+    const wrapper = await openTask()
+    const answer = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => answer.promise)
+
+    await selectAllowedValue(wrapper, 'status', enCours)
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, statusId: 7 })
+    expect(picker(wrapper, 'État').text()).toBe('En cours')
+    expect(picker(wrapper, 'État').classes()).toContain('pending')
+    expect(treeRow(wrapper, 'Parcours de connexion').find('.status').text()).toBe('En cours')
+
+    answer.resolve({ task: { ...stored, status: enCours, lockVersion: 5 } })
+    await flushPromises()
+    expect(picker(wrapper, 'État').text()).toBe('En cours')
+    expect(picker(wrapper, 'État').classes()).not.toContain('pending')
+  })
+
+  it('revient à l\'état réel, dans le détail et dans l\'arbre, quand OP refuse la transition', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(422, 'op_rejected', {
+        error: 'op_rejected',
+        message: 'OpenProject a refusé la modification : Status is invalid because no valid transition exists.',
+        task: stored,
+      })
+    })
+
+    await selectAllowedValue(wrapper, 'status', enCours)
+
+    expect(picker(wrapper, 'État').text()).toBe('Nouveau')
+    expect(picker(wrapper, 'État').classes()).toContain('rejected')
+    expect(treeRow(wrapper, 'Parcours de connexion').find('.status').text()).toBe('Nouveau')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe('OpenProject a refusé la modification : Status is invalid because no valid transition exists.')
+  })
+
+  it('change le type et la priorité', async () => {
+    const wrapper = await openTask()
+    const bug = { id: 7, name: 'Anomalie' }
+    const haute = { id: 9, name: 'Haute' }
+    const answers = [
+      { ...stored, type: bug, lockVersion: 5 },
+      { ...stored, type: bug, priority: haute, lockVersion: 6 },
+    ]
+    fakeApi.on('PATCH', '/tasks/11', () => ({ task: answers.shift() }))
+
+    expect(picker(wrapper, 'Priorité').text()).toBe('Non renseignée')
+    await selectAllowedValue(wrapper, 'type', bug)
+    await selectAllowedValue(wrapper, 'priority', haute)
+
+    expect(fakeApi.calls.filter(call => call.method === 'PATCH').map(call => call.body)).toEqual([
+      { lockVersion: 4, typeId: 7 },
+      { lockVersion: 5, priorityId: 9 },
+    ])
+    expect(picker(wrapper, 'Type').text()).toBe('Anomalie')
+    expect(picker(wrapper, 'Priorité').text()).toBe('Haute')
   })
 })
 
@@ -364,17 +447,17 @@ describe('saisie des heures', () => {
   })
 })
 
-describe('assigné dans l\'arbre', () => {
+describe('état et assigné dans l\'arbre', () => {
   it('ne copie que le chemin de la tâche modifiée', () => {
-    const updated = withAssignee(tree, 11, bruno)
+    const updated = withTreeFields(tree, 11, { status: enCours, assignee: bruno })
 
-    expect(updated[0]!.children[0]!.assignee).toEqual(bruno)
+    expect(updated[0]!.children[0]).toMatchObject({ status: enCours, assignee: bruno })
     expect(updated[1]).toBe(tree[1])
-    expect(tree[0]!.children[0]!.assignee).toEqual(camille)
+    expect(tree[0]!.children[0]).toMatchObject({ status: nouveau, assignee: camille })
   })
 
-  it('rend l\'arbre tel quel quand l\'assigné ne change pas', () => {
-    expect(withAssignee(tree, 11, { ...camille })).toBe(tree)
-    expect(withAssignee(tree, 99, bruno)).toBe(tree)
+  it('rend l\'arbre tel quel quand ni l\'état ni l\'assigné ne changent', () => {
+    expect(withTreeFields(tree, 11, { status: { ...nouveau }, assignee: { ...camille } })).toBe(tree)
+    expect(withTreeFields(tree, 99, { status: enCours, assignee: bruno })).toBe(tree)
   })
 })

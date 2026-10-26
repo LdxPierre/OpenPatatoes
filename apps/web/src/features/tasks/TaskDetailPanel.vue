@@ -8,6 +8,7 @@ import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
+import TaskAllowedValuePicker from './TaskAllowedValuePicker.vue'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
 import TaskHoursField from './TaskHoursField.vue'
 import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
@@ -78,6 +79,9 @@ const fieldNames: Record<keyof TaskEdit, string> = {
   estimatedHours: 'le temps estimé',
   remainingHours: 'le temps restant',
   assignee: 'l\'assigné',
+  status: 'l\'état',
+  type: 'le type',
+  priority: 'la priorité',
 }
 
 const editErrorMessages = computed<OpErrorMessages>(() => {
@@ -115,11 +119,17 @@ interface FieldValue {
   /** Infobulle : la valeur complète quand l'affichage est abrégé. */
   title?: string
   hint?: ReturnType<typeof dueHint>
+  edit?: 'type' | 'priority'
 }
 
 interface Field extends FieldValue {
   /** Les valeurs longues prennent toute la largeur ; les courtes vont par deux. */
   column: 'wide' | 'left' | 'right'
+}
+
+/** Propriété modifiable : la valeur est une liste des valeurs que permet OP. */
+function editable(label: string, edit: 'type' | 'priority'): FieldValue {
+  return { label, value: '', edit }
 }
 
 function named(label: string, ref: { name: string } | null): FieldValue | null {
@@ -146,7 +156,10 @@ function pair(left: FieldValue | null, right: FieldValue | null): Field[] {
     }))
 }
 
-/** Propriétés renseignées, dans l'ordre d'affichage. Une propriété vide n'est pas affichée. */
+/**
+ * Propriétés renseignées, dans l'ordre d'affichage. Une propriété vide n'est pas affichée,
+ * sauf si elle se modifie : le type et la priorité.
+ */
 const fields = computed<Field[]>(() => {
   const task = detail.data.value
   if (!task)
@@ -158,7 +171,7 @@ const fields = computed<Field[]>(() => {
   return [
     ...wide(named('Responsable', task.responsible)),
     ...wide(datesField(task.startDate, task.dueDate, hint)),
-    ...pair(named('Type', task.type), named('Priorité', task.priority)),
+    ...pair(editable('Type', 'type'), editable('Priorité', 'priority')),
     ...wide(named('Version', task.version)),
     ...wide(named('Catégorie', task.category)),
   ]
@@ -230,7 +243,16 @@ const closedSubtasksText = computed(() => {
           {{ header.subject }}
         </h2>
         <div class="summary">
-          <StatusBadge :status="header.status" />
+          <TaskAllowedValuePicker
+            v-if="detail.data.value"
+            :task-id="taskId"
+            field="status"
+            :value="detail.data.value.status"
+            :pending="pendingFields.has('status')"
+            :rejected="rejectedFields.has('status')"
+            @save="save"
+          />
+          <StatusBadge v-else :status="header.status" />
           <TaskAssigneePicker
             v-if="detail.data.value"
             :task-id="taskId"
@@ -295,7 +317,17 @@ const closedSubtasksText = computed(() => {
           <dl class="fields">
             <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
               <dt>{{ field.label }}</dt>
-              <dd :title="field.title">
+              <dd v-if="field.edit && detail.data.value" class="editable">
+                <TaskAllowedValuePicker
+                  :task-id="taskId"
+                  :field="field.edit"
+                  :value="detail.data.value[field.edit]"
+                  :pending="pendingFields.has(field.edit)"
+                  :rejected="rejectedFields.has(field.edit)"
+                  @save="save"
+                />
+              </dd>
+              <dd v-else :title="field.title">
                 {{ field.value }}<span v-if="field.hint" class="hint" :class="{ overdue: field.hint.overdue }">{{ field.hint.text }}</span>
               </dd>
             </div>
@@ -508,6 +540,11 @@ dt {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.field dd.editable {
+  display: flex;
+  overflow: visible;
 }
 
 .hint {

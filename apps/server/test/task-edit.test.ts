@@ -6,11 +6,11 @@ import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { users } from '../src/db/schema.js'
 import { buildTestApp, connectAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
-import { FAKE_STATUSES, startFakeOp } from './support/fake-op.js'
+import { FAKE_PRIORITIES, FAKE_STATUSES, FAKE_TYPES, startFakeOp } from './support/fake-op.js'
 
 const alice = { username: 'alice', password: 'mot-de-passe-alice' }
 
-describe('édition du temps et de l\'assigné d\'une tâche', () => {
+describe('édition d\'une tâche', () => {
   const db = createTestDatabase()
   let op: FakeOp
   let app: ReturnType<typeof buildTestApp>
@@ -154,6 +154,53 @@ describe('édition du temps et de l\'assigné d\'une tâche', () => {
     expect(response.json().task.assignee).toBeNull()
   })
 
+  it('change l\'état vers une transition permise, avec son caractère fermé', async () => {
+    const response = await patchTask(10, { lockVersion: 0, statusId: FAKE_STATUSES.inProgress.id })
+
+    expect(response.statusCode).toBe(200)
+    expect(task.statusId).toBe(FAKE_STATUSES.inProgress.id)
+    expect(response.json().task.status).toEqual({ id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false })
+  })
+
+  it('renvoie le refus d\'OP et l\'état réel quand la transition d\'état n\'est pas permise', async () => {
+    task.allowedStatusIds = [FAKE_STATUSES.new.id]
+
+    const response = await patchTask(10, { lockVersion: 0, statusId: FAKE_STATUSES.inProgress.id })
+
+    expect(response.statusCode).toBe(422)
+    expect(response.json()).toMatchObject({
+      error: 'op_rejected',
+      message: 'OpenProject a refusé la modification : Status is invalid because no valid transition exists.',
+      task: {
+        lockVersion: 0,
+        status: { id: FAKE_STATUSES.closed.id, name: 'Closed', isClosed: true },
+      },
+    })
+    expect(task.statusId).toBe(FAKE_STATUSES.closed.id)
+  })
+
+  it('change le type et la priorité de la tâche', async () => {
+    const response = await patchTask(10, { lockVersion: 0, typeId: FAKE_TYPES.bug.id, priorityId: FAKE_PRIORITIES.high.id })
+
+    expect(response.statusCode).toBe(200)
+    expect(task.type).toEqual(FAKE_TYPES.bug)
+    expect(task.priority).toEqual(FAKE_PRIORITIES.high)
+    expect(response.json().task).toMatchObject({
+      type: { id: FAKE_TYPES.bug.id, name: 'Bug' },
+      priority: { id: FAKE_PRIORITIES.high.id, name: 'High' },
+    })
+  })
+
+  it('renvoie le refus d\'OP quand le type n\'est pas permis', async () => {
+    const response = await patchTask(10, { lockVersion: 0, typeId: 99 })
+
+    expect(response.statusCode).toBe(422)
+    expect(response.json()).toMatchObject({
+      error: 'op_rejected',
+      task: { type: { id: FAKE_TYPES.task.id, name: 'Task' } },
+    })
+  })
+
   it('renvoie le refus d\'OP avec son message et l\'état réel complet de la tâche, sans rien modifier', async () => {
     const outsider = op.addUser({ name: 'Externe', token: 'tok-externe' })
 
@@ -252,6 +299,18 @@ describe('édition du temps et de l\'assigné d\'une tâche', () => {
     [
       'avec un assigné invalide',
       { lockVersion: 0, assigneeId: 0 },
+    ],
+    [
+      'avec un état vide',
+      { lockVersion: 0, statusId: null },
+    ],
+    [
+      'avec un type invalide',
+      { lockVersion: 0, typeId: 0 },
+    ],
+    [
+      'avec une priorité vide',
+      { lockVersion: 0, priorityId: null },
     ],
     [
       'avec un champ inconnu',
@@ -360,6 +419,91 @@ describe('édition du temps et de l\'assigné d\'une tâche', () => {
 
     it('traite une tâche masquée par OP comme introuvable ou inaccessible', async () => {
       const response = await getAssignees(99)
+
+      expect(response.statusCode).toBe(404)
+      expect(response.json()).toMatchObject({ error: 'op_not_found' })
+    })
+  })
+
+  describe('valeurs permises', () => {
+    function getAllowedValues(taskId: number) {
+      return app.inject({
+        method: 'GET',
+        url: `/api/tasks/${taskId}/allowed-values`,
+        cookies: { [SESSION_COOKIE]: session },
+      })
+    }
+
+    it('liste les transitions d\'état, les types et les priorités du formulaire OP de la tâche', async () => {
+      task.allowedStatusIds = [FAKE_STATUSES.closed.id, FAKE_STATUSES.inProgress.id]
+
+      const response = await getAllowedValues(10)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        statuses: [
+          { id: FAKE_STATUSES.closed.id, name: 'Closed', isClosed: true },
+          { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
+        ],
+        types: [
+          { id: FAKE_TYPES.task.id, name: 'Task' },
+          { id: FAKE_TYPES.milestone.id, name: 'Milestone' },
+          { id: FAKE_TYPES.bug.id, name: 'Bug' },
+        ],
+        priorities: [
+          { id: FAKE_PRIORITIES.low.id, name: 'Low' },
+          { id: FAKE_PRIORITIES.normal.id, name: 'Normal' },
+          { id: FAKE_PRIORITIES.high.id, name: 'High' },
+        ],
+      })
+      // Lire le formulaire ne modifie pas la tâche.
+      expect(task.lockVersion).toBe(0)
+    })
+
+    it('ne propose aucune valeur pour un champ qu\'OP ne laisse pas modifier', async () => {
+      const field = (allowedValues: object[]) => ({ writable: false, _embedded: { allowedValues } })
+      op.interceptNext({
+        method: 'POST',
+        path: '/api/v3/work_packages/10/form',
+        status: 200,
+        body: {
+          _type: 'Form',
+          _embedded: {
+            schema: {
+              status: field([{ _type: 'Status', id: 1, name: 'New', isClosed: false }]),
+              type: field([{ _type: 'Type', id: 1, name: 'Task' }]),
+              priority: { writable: true, _embedded: { allowedValues: [{ _type: 'Priority', id: 8, name: 'Normal' }] } },
+            },
+          },
+        },
+      })
+
+      const response = await getAllowedValues(10)
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({
+        statuses: [],
+        types: [],
+        priorities: [{ id: 8, name: 'Normal' }],
+      })
+    })
+
+    it('rejette un formulaire OP non conforme', async () => {
+      op.interceptNext({
+        method: 'POST',
+        path: '/api/v3/work_packages/10/form',
+        status: 200,
+        body: { _type: 'Form', _embedded: {} },
+      })
+
+      const response = await getAllowedValues(10)
+
+      expect(response.statusCode).toBe(502)
+      expect(response.json()).toMatchObject({ error: 'op_invalid_response' })
+    })
+
+    it('traite une tâche masquée par OP comme introuvable ou inaccessible', async () => {
+      const response = await getAllowedValues(99)
 
       expect(response.statusCode).toBe(404)
       expect(response.json()).toMatchObject({ error: 'op_not_found' })

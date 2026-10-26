@@ -27,6 +27,8 @@ const scenario: Scenario = {
         assigneeId: 1,
         estimatedTime: 'PT8H',
         remainingTime: 'PT6H',
+        statusId: 1,
+        allowedStatusIds: [7],
       },
     ],
   },
@@ -90,6 +92,43 @@ test.describe('modification d\'une tâche', () => {
     await expect(panel.getByRole('button', { name: /^Assigné : Bruno Petit/ })).toBeVisible()
   })
 
+  test('change l\'état parmi les transitions permises par OP, dans le détail comme dans l\'arbre', async ({ page }) => {
+    const panel = await openTask(page)
+    const row = page.getByRole('treeitem', { name: /Pailler les allées/ })
+    await expect(row).toContainText('New')
+
+    await panel.getByRole('button', { name: /^État : New/ }).click()
+    // Le faux OP ne permet que In progress depuis New : Closed n'est pas proposé.
+    await expect(page.getByRole('option')).toHaveText(['New', 'In progress'])
+    const saved = page.waitForResponse(response => response.request().method() === 'PATCH')
+    await page.getByRole('option', { name: 'In progress' }).click()
+
+    await expect(panel.getByRole('button', { name: /^État : In progress/ })).toBeVisible()
+    await expect(row).toContainText('In progress')
+    await saved
+    await page.reload()
+    await expect(panel.getByRole('button', { name: /^État : In progress/ })).toBeVisible()
+    await expect(row).toContainText('In progress')
+  })
+
+  test('change le type et la priorité, enregistrés dans OP', async ({ page }) => {
+    const panel = await openTask(page)
+
+    await panel.getByRole('button', { name: /^Type : Task/ }).click()
+    await page.getByRole('option', { name: 'Bug' }).click()
+    await expect(panel.getByRole('button', { name: /^Type : Bug/ })).toBeVisible()
+
+    await panel.getByRole('button', { name: /^Priorité : Normal/ }).click()
+    const saved = page.waitForResponse(response => response.request().method() === 'PATCH')
+    await page.getByRole('option', { name: 'High' }).click()
+    await expect(panel.getByRole('button', { name: /^Priorité : High/ })).toBeVisible()
+
+    await saved
+    await page.reload()
+    await expect(panel.getByRole('button', { name: /^Type : Bug/ })).toBeVisible()
+    await expect(panel.getByRole('button', { name: /^Priorité : High/ })).toBeVisible()
+  })
+
   test.describe('quand OP refuse la modification', () => {
     test.use({
       scenario: {
@@ -123,6 +162,43 @@ test.describe('modification d\'une tâche', () => {
         'OpenProject a refusé la modification : Le temps restant ne peut pas dépasser le temps estimé.',
       )
       await expect(panel.getByRole('button', { name: /^Restant : 6/ })).toBeVisible()
+    })
+  })
+
+  test.describe('quand OP refuse la transition d\'état', () => {
+    test.use({
+      scenario: {
+        ...scenario,
+        op: {
+          ...scenario.op,
+          interceptions: [
+            {
+              method: 'PATCH',
+              path: '/api/v3/work_packages/10',
+              status: 422,
+              body: {
+                _type: 'Error',
+                errorIdentifier: 'urn:openproject-org:api:v3:errors:PropertyConstraintViolation',
+                message: 'Status is invalid because no valid transition exists.',
+              },
+            },
+          ],
+        },
+      },
+    })
+
+    test('revient à l\'état enregistré, dans le détail comme dans l\'arbre', async ({ page }) => {
+      const panel = await openTask(page)
+      const row = page.getByRole('treeitem', { name: /Pailler les allées/ })
+
+      await panel.getByRole('button', { name: /^État : New/ }).click()
+      await page.getByRole('option', { name: 'In progress' }).click()
+
+      await expect(panel.getByRole('alert')).toHaveText(
+        'OpenProject a refusé la modification : Status is invalid because no valid transition exists.',
+      )
+      await expect(panel.getByRole('button', { name: /^État : New/ })).toBeVisible()
+      await expect(row).toContainText('New')
     })
   })
 })

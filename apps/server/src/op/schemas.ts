@@ -1,4 +1,4 @@
-import type { OpNamedRef, TaskDetail } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskAllowedValuesResponse, TaskDetail } from '@openpatatoes/shared'
 import { z } from 'zod'
 import { isoDurationToHours } from './duration.js'
 
@@ -172,6 +172,55 @@ export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
   }) satisfies Omit<TaskDetail, 'status'> & { status: OpNamedRef })
 
 export type OpWorkPackageDetail = z.output<typeof opWorkPackageDetailSchema>
+
+/** Ressource OP (type, priorité) proposée par un formulaire. */
+const opNamedResourceSchema = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+  })
+  .transform(({ id, name }) => ({ id, name }))
+
+/**
+ * Champ du schéma d'un formulaire OP, réduit à ses valeurs permises. OP les donne
+ * en entier dans `_embedded.allowedValues`. Un champ en lecture seule n'en a aucune.
+ */
+function opFormFieldSchema<T extends z.ZodType>(value: T) {
+  return z
+    .object({
+      writable: z.boolean(),
+      _embedded: z.object({
+        allowedValues: z.array(value),
+      }).optional(),
+    })
+    .transform(({ writable, _embedded }) => (writable
+      ? _embedded?.allowedValues ?? []
+      : []))
+}
+
+/**
+ * Formulaire de modification d'une tâche (`POST /work_packages/:id/form`), réduit aux valeurs
+ * permises pour l'état, le type et la priorité. Les états sont les transitions qu'OP autorise
+ * depuis l'état actuel, pour ce type et les rôles de l'utilisateur.
+ */
+export const opWorkPackageFormSchema = z
+  .object({
+    _type: z.literal('Form'),
+    _embedded: z.object({
+      schema: z.object({
+        status: opFormFieldSchema(opStatusSchema),
+        type: opFormFieldSchema(opNamedResourceSchema),
+        priority: opFormFieldSchema(opNamedResourceSchema),
+      }),
+    }),
+  })
+  .transform(({ _embedded: { schema } }) => ({
+    statuses: schema.status,
+    types: schema.type,
+    priorities: schema.priority,
+  }) satisfies TaskAllowedValuesResponse)
+
+export type OpWorkPackageForm = z.output<typeof opWorkPackageFormSchema>
 
 /**
  * Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages.

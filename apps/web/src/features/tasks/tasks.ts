@@ -1,7 +1,7 @@
-import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRejectedResponse, TaskTreeResponse } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
 import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { forEachTask, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
@@ -59,14 +59,36 @@ export function useTaskAssigneesQuery(taskId: MaybeRefOrGetter<number>, enabled:
   })
 }
 
+function taskAllowedValuesQueryKey(taskId: number) {
+  return [
+    ...taskDetailQueryKey(taskId),
+    'allowed-values',
+  ]
+}
+
+/**
+ * États, types et priorités qu'OP accepte pour la tâche. La liste n'est lue qu'à la demande,
+ * et relue à chaque ouverture : les transitions d'état changent avec l'état et le type.
+ */
+export function useTaskAllowedValuesQuery(taskId: MaybeRefOrGetter<number>, enabled: MaybeRefOrGetter<boolean>) {
+  return useQuery({
+    queryKey: computed(() => taskAllowedValuesQueryKey(toValue(taskId))),
+    queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}/allowed-values`, { schema: taskAllowedValuesResponseSchema, signal }),
+    enabled: () => toValue(enabled),
+  })
+}
+
 /**
  * Modification d'une tâche, telle que l'interface l'affiche. Un champ absent reste inchangé,
- * `null` le vide. L'assigné est complet : son nom s'affiche avant la réponse d'OP.
+ * `null` le vide. Les ressources sont complètes : leur nom s'affiche avant la réponse d'OP.
  */
 export interface TaskEdit {
   estimatedHours?: number | null
   remainingHours?: number | null
   assignee?: OpNamedRef | null
+  status?: TaskStatus
+  type?: OpNamedRef
+  priority?: OpNamedRef
 }
 
 export interface TaskEditVariables {
@@ -94,7 +116,7 @@ function pendingEdits(queryClient: QueryClient, taskId: number): TaskEditVariabl
 }
 
 /**
- * Enregistre la tâche dans le cache du détail, et son assigné dans l'arbre du projet.
+ * Enregistre la tâche dans le cache du détail, et son état et son assigné dans l'arbre du projet.
  * Les modifications encore en route vers OP restent affichées par-dessus, sauf `settled`,
  * celle qui vient d'obtenir sa réponse.
  */
@@ -106,18 +128,23 @@ function showTask(queryClient: QueryClient, { projectId, taskId }: TaskEditVaria
   queryClient.setQueryData<TaskTreeResponse>(
     taskTreeQueryKey(projectId),
     tree => tree && {
-      tasks: withAssignee(tree.tasks, taskId, task.assignee),
+      tasks: withTreeFields(tree.tasks, taskId, task),
     },
   )
 }
 
-/** L'arbre avec l'assigné d'une tâche remplacé. Seules les tâches du chemin sont copiées. */
-export function withAssignee(roots: TaskNode[], taskId: number, assignee: OpNamedRef | null): TaskNode[] {
+/** Ce que l'arbre affiche d'une tâche, en plus de son titre. */
+type TreeFields = Pick<TaskNode, 'status' | 'assignee'>
+
+/** L'arbre avec l'état et l'assigné d'une tâche remplacés. Seules les tâches du chemin sont copiées. */
+export function withTreeFields(roots: TaskNode[], taskId: number, { status, assignee }: TreeFields): TaskNode[] {
   const path = taskPath(roots, taskId)
   const task = path?.at(-1)
-  if (!path || !task || (task.assignee?.id ?? null) === (assignee?.id ?? null))
+  if (!path || !task)
     return roots
-  let node: TaskNode = { ...task, assignee }
+  if (task.status.id === status.id && (task.assignee?.id ?? null) === (assignee?.id ?? null))
+    return roots
+  let node: TaskNode = { ...task, status, assignee }
   for (const parent of path.slice(0, -1).reverse()) {
     const child = node
     node = {
@@ -155,7 +182,7 @@ export function usePendingTaskFields(taskId: MaybeRefOrGetter<number>) {
 }
 
 /**
- * Modifie le temps estimé, le temps restant ou l'assigné d'une tâche. La modification
+ * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type ou la priorité d'une tâche. La modification
  * s'affiche tout de suite ; si OP la refuse, l'affichage revient à l'état réel.
  * Les modifications partent l'une après l'autre, toutes tâches confondues : chacune envoie
  * la version de la tâche que la précédente a obtenue d'OP.
@@ -177,15 +204,16 @@ export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, 
       const task = cachedTask(taskId)
       if (!task)
         throw new Error(`Tâche ${taskId} absente du cache`)
-      const { assignee, ...hours } = edit
+      const { assignee, status, type, priority, ...hours } = edit
       return apiFetch(`/tasks/${taskId}`, {
         method: 'PATCH',
         body: {
           lockVersion: task.lockVersion,
           ...hours,
-          ...(assignee === undefined
-            ? {}
-            : { assigneeId: assignee?.id ?? null }),
+          ...(assignee !== undefined && { assigneeId: assignee?.id ?? null }),
+          ...(status && { statusId: status.id }),
+          ...(type && { typeId: type.id }),
+          ...(priority && { priorityId: priority.id }),
         },
         schema: taskDetailResponseSchema,
       })
@@ -207,6 +235,13 @@ export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, 
         showTask(queryClient, variables, applyEdit(current, variables.edit))
     },
     onSuccess: ({ task }, variables) => showTask(queryClient, variables, task, variables),
+    // L'état et le type décident des transitions permises : la liste est à relire, sans retenir la modification suivante.
+    onSettled: (_data, _error, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: taskAllowedValuesQueryKey(variables.taskId),
+        exact: true,
+      })
+    },
     onError: async (error, variables) => {
       try {
         // Sans l'état réel joint au refus, on le relit : le cache mêle des valeurs jamais enregistrées.

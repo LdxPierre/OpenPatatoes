@@ -20,6 +20,9 @@ export interface Scenario {
       /** Durées ISO 8601, comme dans OP (`PT2H30M`). */
       estimatedTime?: string | null
       remainingTime?: string | null
+      statusId?: number
+      /** Statuts proposés par le formulaire OP pour cette tâche (transitions autorisées). */
+      allowedStatusIds?: number[]
     }>
     /** Réponse imposée à la prochaine requête correspondante vers le faux OP. Usage unique. */
     interceptions?: Array<{ method?: string, path?: string, status: number, body?: unknown }>

@@ -108,21 +108,26 @@ const taskHoursSchema = z
   .nullable()
   .optional()
 
+const opIdSchema = z.number().int().positive()
+
 /**
  * Corps de `PATCH /api/tasks/:id`. Un champ absent reste inchangé, `null` le vide ;
- * au moins un champ doit être modifié. `lockVersion` est celui de la tâche lue :
- * OP refuse l'écriture si la tâche a changé depuis.
+ * au moins un champ doit être modifié. L'état, le type et la priorité ne se vident pas :
+ * OP les exige. `lockVersion` est celui de la tâche lue : OP refuse l'écriture si la tâche
+ * a changé depuis.
  */
 export const taskChangesSchema = z
   .strictObject({
     lockVersion: z.number().int().nonnegative(),
     estimatedHours: taskHoursSchema,
     remainingHours: taskHoursSchema,
-    assigneeId: z.number().int().positive().nullable().optional(),
+    assigneeId: opIdSchema.nullable().optional(),
+    statusId: opIdSchema.optional(),
+    typeId: opIdSchema.optional(),
+    priorityId: opIdSchema.optional(),
   })
   .refine(
-    ({ estimatedHours, remainingHours, assigneeId }) =>
-      [estimatedHours, remainingHours, assigneeId].some(value => value !== undefined),
+    ({ lockVersion: _, ...changes }) => Object.values(changes).some(value => value !== undefined),
     'aucun champ à modifier',
   )
 
@@ -148,6 +153,19 @@ export const taskAssigneesResponseSchema = z.object({
 })
 
 export type TaskAssigneesResponse = z.infer<typeof taskAssigneesResponseSchema>
+
+/**
+ * Réponse de `GET /api/tasks/:id/allowed-values` : les valeurs qu'OP accepte pour la tâche,
+ * avec le jeton de l'utilisateur. Les états sont les transitions permises depuis l'état actuel.
+ * Une liste vide : OP ne laisse pas modifier ce champ.
+ */
+export const taskAllowedValuesResponseSchema = z.object({
+  statuses: z.array(taskStatusSchema),
+  types: z.array(opNamedRefSchema),
+  priorities: z.array(opNamedRefSchema),
+})
+
+export type TaskAllowedValuesResponse = z.infer<typeof taskAllowedValuesResponseSchema>
 
 /**
  * Visite chaque tâche des arbres donnés, à tous les niveaux. Le parcours est itératif :
