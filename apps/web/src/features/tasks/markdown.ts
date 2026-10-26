@@ -48,10 +48,11 @@ export function sanitizePreview(html: string) {
 
 /**
  * La touche vient-elle de l'éditeur markdown ? Ses fenêtres sont placées à la fin de la page,
- * hors de l'éditeur : elles comptent aussi.
+ * hors de l'éditeur : elles comptent aussi. L'aperçu en lecture porte aussi la classe `md-editor` :
+ * md-editor-v3 l'en distingue par `md-editor-previewOnly`.
  */
 export function isFromMarkdownEditor(event: Event) {
-  return event.target instanceof Element && !!event.target.closest('.md-editor, .md-editor-modal-container')
+  return event.target instanceof Element && !!event.target.closest('.md-editor:not(.md-editor-previewOnly), .md-editor-modal-container')
 }
 
 config({

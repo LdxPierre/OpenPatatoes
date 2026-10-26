@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sanitizePreview } from '@/features/tasks/markdown'
 import { ApiError } from '@/shared/api/api-fetch'
 import { fakeApi } from './support/fake-api'
-import { mountApp } from './support/mount-app'
+import { expectNavigatedTo, mountApp } from './support/mount-app'
 
 // jsdom n'a pas `matchMedia`, que le thème lit dès son import.
 vi.hoisted(() => {
@@ -108,6 +108,14 @@ describe('description d\'une tâche', () => {
     // markdown-it laisse un lien `javascript:` en texte ; DOMPurify retire l'attribut d'une balise.
     expect(preview.findAll('a').map(link => link.attributes('href'))).toEqual([undefined])
     expect((window as { hacked?: boolean }).hacked).toBeUndefined()
+  })
+
+  it('se ferme avec Échap depuis l\'aperçu, hors de toute saisie', async () => {
+    const wrapper = await openTask()
+
+    await section(wrapper).find('.preview .md-editor').trigger('keydown', { key: 'Escape' })
+
+    await expectNavigatedTo('/projets/1')
   })
 
   it('propose d\'ajouter une description à une tâche qui n\'en a pas', async () => {

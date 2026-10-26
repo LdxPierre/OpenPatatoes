@@ -43,13 +43,28 @@ describe('assainissement d\'une description markdown', () => {
     // markdown-it retire le `>` de la citation : l'attribut suit alors un saut de ligne.
     ['sur la ligne suivante d\'une citation', '> <img src=x\n>onerror=alert(1)>', '> <img src=x\n>>'],
     ['sur la ligne suivante d\'une citation imbriquée', '> > <div\n>>onmouseover=alert(1)>x</div>', '> > <div\n>>>x</div>'],
+    ['dont l\'égal est sur la ligne suivante d\'une citation', '> <img src=x onerror\n> =alert(1)>', '> <img src=x >'],
+    ['dont l\'égal est sur la ligne suivante d\'une citation imbriquée', '> > <img src=x onerror\n> > =alert(1)>', '> > <img src=x >'],
+    ['dont l\'égal est sur la ligne suivante d\'une citation dans une liste', '- > <img src=x onerror\n  > =alert(1)>', '- > <img src=x >'],
     ['dont la valeur entre guillemets continue à la ligne suivante', '<a onclick="alert(1)\n">lien</a>', '<a "alert(1)\n">lien</a>'],
   ])('retire un attribut d\'événement %s', (_case, markdown, sanitized) => {
     expect(sanitizeMarkdown(markdown)).toBe(sanitized)
   })
 
+  it('retire le document d\'un cadre, dont les entités cachent des scripts', () => {
+    expect(sanitizeMarkdown('<iframe srcdoc="&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>')).toBe('<iframe ></iframe>')
+  })
+
   it('retire aussi un attribut d\'événement cité dans le texte : rien ne dit sûrement qu\'il est hors d\'une balise', () => {
     expect(sanitizeMarkdown('Le paramètre onclick="x" se règle dans le fichier.')).toBe('Le paramètre  se règle dans le fichier.')
+  })
+
+  it.each([
+    ['une comparaison', 'Seulement si only >= 3 et once == 2.'],
+    ['un titre souligné', 'Onboarding\n==========\n\ntexte'],
+    ['un titre souligné dans une citation', '> Online\n> =====\n\nsuite'],
+  ])('garde %s dont un mot commence par « on »', (_case, markdown) => {
+    expect(sanitizeMarkdown(markdown)).toBe(markdown)
   })
 
   it('garde les mots qui commencent par « on » sans être suivis d\'un égal, et les attributs qui finissent par « on… »', () => {
