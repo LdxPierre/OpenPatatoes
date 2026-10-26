@@ -7,8 +7,10 @@ import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
 import { isFromMarkdownEditor } from './markdown'
+import TaskActivityFeed from './TaskActivityFeed.vue'
 import TaskAllowedValuePicker from './TaskAllowedValuePicker.vue'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
 import TaskDescription from './TaskDescription.vue'
@@ -35,6 +37,18 @@ const detail = useTaskDetailQuery(() => props.taskId)
 const preview = computed(() => props.tree && taskPreview(props.tree, props.taskId))
 /** En-tête : la réponse d'OP, ou ce que l'arbre sait déjà de la tâche. */
 const header = computed(() => detail.data.value ?? preview.value)
+
+/** Onglet ouvert. Il reste ouvert d'une tâche à l'autre : on relit l'activité de plusieurs tâches sans y revenir. */
+const tab = shallowRef<'detail' | 'activity'>('detail')
+/**
+ * Les onglets restent montés une fois ouverts : changer d'onglet ne perd ni la description en cours
+ * d'écriture ni un brouillon de commentaire. L'activité n'est lue qu'à sa première ouverture.
+ */
+const activityOpened = shallowRef(false)
+watch(tab, (value) => {
+  if (value === 'activity')
+    activityOpened.value = true
+}, { immediate: true })
 
 // Les champs et la liste des assignés arrêtent leur Échap : il ne ferme pas le détail.
 onKeyStroke('Escape', (event) => {
@@ -243,160 +257,174 @@ const closedSubtasksText = computed(() => {
     :aria-labelledby="header ? 'task-detail-title' : undefined"
     :aria-label="header ? undefined : 'Détail de la tâche'"
   >
-    <div class="head">
-      <RouterLink
-        v-if="header?.parent"
-        class="parent"
-        :to="{ name: 'task', params: { id: projectId, taskId: header.parent.id } }"
-      >
-        <span class="sr-only">Tâche parente : </span>{{ header.parent.subject }}
-      </RouterLink>
+    <Tabs v-model="tab">
+      <div class="head">
+        <RouterLink
+          v-if="header?.parent"
+          class="parent"
+          :to="{ name: 'task', params: { id: projectId, taskId: header.parent.id } }"
+        >
+          <span class="sr-only">Tâche parente : </span>{{ header.parent.subject }}
+        </RouterLink>
 
-      <Button ref="closeButton" variant="ghost" size="icon" class="close" aria-label="Fermer le détail" @click="emit('close')">
-        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-          <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
-      </Button>
+        <Button ref="closeButton" variant="ghost" size="icon" class="close" aria-label="Fermer le détail" @click="emit('close')">
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+            <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </Button>
 
-      <template v-if="header">
-        <h2 id="task-detail-title" :class="{ child: header.parent }">
-          {{ header.subject }}
-        </h2>
-        <div class="summary">
-          <TaskAllowedValuePicker
-            v-if="detail.data.value"
-            :task-id="taskId"
-            field="status"
-            :value="detail.data.value.status"
-            :pending="pendingFields.has('status')"
-            :rejected="rejectedFields.has('status')"
-            @save="save"
-          />
-          <StatusBadge v-else :status="header.status" />
-          <TaskAssigneePicker
-            v-if="detail.data.value"
-            :task-id="taskId"
-            :assignee="detail.data.value.assignee"
-            :pending="pendingFields.has('assignee')"
-            :rejected="rejectedFields.has('assignee')"
-            @select="assignee => save({ assignee })"
-          />
-          <span v-else-if="header.assignee">{{ header.assignee.name }}</span>
-          <span class="ref op-num">#{{ header.id }}</span>
-        </div>
-      </template>
-
-      <p v-else-if="detail.isPending.value" class="muted opening" role="status">
-        Ouverture de la tâche…
-      </p>
-    </div>
-
-    <div v-if="detail.error.value" class="section error">
-      <OpErrorAlert
-        :error="detail.error.value"
-        :messages="errorMessages"
-        :retrying="detail.isFetching.value"
-        @retry="detail.refetch()"
-      />
-    </div>
-
-    <template v-else-if="header">
-      <section class="section" aria-label="Temps et propriétés" :aria-busy="detail.isPending.value">
-        <p v-if="detail.isPending.value" class="muted" role="status">
-          Chargement des heures et des propriétés…
-        </p>
-        <template v-else>
-          <dl class="hours">
-            <TaskHoursField
-              v-for="item in editableHours"
-              :key="item.field"
-              :label="item.label"
-              :value="item.value"
-              :pending="pendingFields.has(item.field)"
-              :rejected="rejectedFields.has(item.field)"
-              @save="hours => save({ [item.field]: hours })"
+        <template v-if="header">
+          <h2 id="task-detail-title" :class="{ child: header.parent }">
+            {{ header.subject }}
+          </h2>
+          <div class="summary">
+            <TaskAllowedValuePicker
+              v-if="detail.data.value"
+              :task-id="taskId"
+              field="status"
+              :value="detail.data.value.status"
+              :pending="pendingFields.has('status')"
+              :rejected="rejectedFields.has('status')"
+              @save="save"
             />
-            <!-- Sans droit de voir le temps passé, OP ne le donne pas : on n'en parle pas. -->
-            <div v-if="detail.data.value?.spentHours != null" class="hour">
-              <dt>Passé</dt>
-              <dd class="op-num">
-                {{ formatHours(detail.data.value.spentHours) }}
-              </dd>
+            <StatusBadge v-else :status="header.status" />
+            <TaskAssigneePicker
+              v-if="detail.data.value"
+              :task-id="taskId"
+              :assignee="detail.data.value.assignee"
+              :pending="pendingFields.has('assignee')"
+              :rejected="rejectedFields.has('assignee')"
+              @select="assignee => save({ assignee })"
+            />
+            <span v-else-if="header.assignee">{{ header.assignee.name }}</span>
+            <span class="ref op-num">#{{ header.id }}</span>
+          </div>
+        </template>
+
+        <p v-else-if="detail.isPending.value" class="muted opening" role="status">
+          Ouverture de la tâche…
+        </p>
+
+        <TabsList v-if="header && !detail.error.value" class="tabs" aria-label="Contenu du détail">
+          <TabsTrigger value="detail">
+            Détail
+          </TabsTrigger>
+          <TabsTrigger value="activity">
+            Activité
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      <div v-if="detail.error.value" class="section error">
+        <OpErrorAlert
+          :error="detail.error.value"
+          :messages="errorMessages"
+          :retrying="detail.isFetching.value"
+          @retry="detail.refetch()"
+        />
+      </div>
+
+      <TabsContent v-else-if="header" v-show="tab === 'detail'" value="detail" force-mount>
+        <section class="section" aria-label="Temps et propriétés" :aria-busy="detail.isPending.value">
+          <p v-if="detail.isPending.value" class="muted" role="status">
+            Chargement des heures et des propriétés…
+          </p>
+          <template v-else>
+            <dl class="hours">
+              <TaskHoursField
+                v-for="item in editableHours"
+                :key="item.field"
+                :label="item.label"
+                :value="item.value"
+                :pending="pendingFields.has(item.field)"
+                :rejected="rejectedFields.has(item.field)"
+                @save="hours => save({ [item.field]: hours })"
+              />
+              <!-- Sans droit de voir le temps passé, OP ne le donne pas : on n'en parle pas. -->
+              <div v-if="detail.data.value?.spentHours != null" class="hour">
+                <dt>Passé</dt>
+                <dd class="op-num">
+                  {{ formatHours(detail.data.value.spentHours) }}
+                </dd>
+              </div>
+            </dl>
+            <div v-if="failure && !failureNearDescription" class="edit-error">
+              <OpErrorAlert
+                :error="failure.error"
+                :messages="editErrorMessages"
+                @retry="mutate(failure.variables)"
+              />
             </div>
-          </dl>
-          <div v-if="failure && !failureNearDescription" class="edit-error">
+            <p class="sr-only" role="status">
+              {{ pendingFields.size ? 'Enregistrement dans OpenProject…' : '' }}
+            </p>
+            <dl class="fields">
+              <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
+                <dt>{{ field.label }}</dt>
+                <dd v-if="field.edit === 'parent' && detail.data.value" class="editable">
+                  <TaskParentPicker
+                    :task-id="taskId"
+                    :parent="detail.data.value.parent"
+                    :tree="tree"
+                    :pending="pendingFields.has('parent')"
+                    :rejected="rejectedFields.has('parent')"
+                    @select="parent => save({ parent })"
+                  />
+                </dd>
+                <dd v-else-if="field.edit && field.edit !== 'parent' && detail.data.value" class="editable">
+                  <TaskAllowedValuePicker
+                    :task-id="taskId"
+                    :field="field.edit"
+                    :value="detail.data.value[field.edit]"
+                    :pending="pendingFields.has(field.edit)"
+                    :rejected="rejectedFields.has(field.edit)"
+                    @save="save"
+                  />
+                </dd>
+                <dd v-else :title="field.title">
+                  {{ field.value }}<span v-if="field.hint" class="hint" :class="{ overdue: field.hint.overdue }">{{ field.hint.text }}</span>
+                </dd>
+              </div>
+            </dl>
+          </template>
+        </section>
+
+        <div v-if="detail.data.value" class="section">
+          <div v-if="failure && failureNearDescription" class="edit-error">
             <OpErrorAlert
               :error="failure.error"
               :messages="editErrorMessages"
               @retry="mutate(failure.variables)"
             />
           </div>
-          <p class="sr-only" role="status">
-            {{ pendingFields.size ? 'Enregistrement dans OpenProject…' : '' }}
-          </p>
-          <dl class="fields">
-            <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
-              <dt>{{ field.label }}</dt>
-              <dd v-if="field.edit === 'parent' && detail.data.value" class="editable">
-                <TaskParentPicker
-                  :task-id="taskId"
-                  :parent="detail.data.value.parent"
-                  :tree="tree"
-                  :pending="pendingFields.has('parent')"
-                  :rejected="rejectedFields.has('parent')"
-                  @select="parent => save({ parent })"
-                />
-              </dd>
-              <dd v-else-if="field.edit && field.edit !== 'parent' && detail.data.value" class="editable">
-                <TaskAllowedValuePicker
-                  :task-id="taskId"
-                  :field="field.edit"
-                  :value="detail.data.value[field.edit]"
-                  :pending="pendingFields.has(field.edit)"
-                  :rejected="rejectedFields.has(field.edit)"
-                  @save="save"
-                />
-              </dd>
-              <dd v-else :title="field.title">
-                {{ field.value }}<span v-if="field.hint" class="hint" :class="{ overdue: field.hint.overdue }">{{ field.hint.text }}</span>
-              </dd>
-            </div>
-          </dl>
-        </template>
-      </section>
-
-      <div v-if="detail.data.value" class="section">
-        <div v-if="failure && failureNearDescription" class="edit-error">
-          <OpErrorAlert
-            :error="failure.error"
-            :messages="editErrorMessages"
-            @retry="mutate(failure.variables)"
+          <TaskDescription
+            ref="description"
+            :key="taskId"
+            :description="detail.data.value.description"
+            :pending="pendingFields.has('description')"
+            :rejected="rejectedFields.has('description')"
+            @save="text => save({ description: text })"
           />
         </div>
-        <TaskDescription
-          ref="description"
-          :key="taskId"
-          :description="detail.data.value.description"
-          :pending="pendingFields.has('description')"
-          :rejected="rejectedFields.has('description')"
-          @save="text => save({ description: text })"
-        />
-      </div>
 
-      <section v-if="subtasks.length" class="section" aria-labelledby="subtasks-title">
-        <h3 id="subtasks-title">
-          Sous-tâches <span class="count op-num">{{ closedSubtasksText }}</span>
-        </h3>
-        <ul class="subtasks">
-          <li v-for="child in subtasks" :key="child.id">
-            <RouterLink :to="{ name: 'task', params: { id: projectId, taskId: child.id } }" class="subtask" :title="child.subject">
-              {{ child.subject }}
-            </RouterLink>
-            <StatusBadge :status="child.status" />
-          </li>
-        </ul>
-      </section>
-    </template>
+        <section v-if="subtasks.length" class="section" aria-labelledby="subtasks-title">
+          <h3 id="subtasks-title">
+            Sous-tâches <span class="count op-num">{{ closedSubtasksText }}</span>
+          </h3>
+          <ul class="subtasks">
+            <li v-for="child in subtasks" :key="child.id">
+              <RouterLink :to="{ name: 'task', params: { id: projectId, taskId: child.id } }" class="subtask" :title="child.subject">
+                {{ child.subject }}
+              </RouterLink>
+              <StatusBadge :status="child.status" />
+            </li>
+          </ul>
+        </section>
+      </TabsContent>
+      <TabsContent v-if="header && !detail.error.value && activityOpened" v-show="tab === 'activity'" value="activity" force-mount>
+        <TaskActivityFeed :task-id="taskId" />
+      </TabsContent>
+    </Tabs>
   </aside>
 </template>
 
@@ -425,11 +453,21 @@ const closedSubtasksText = computed(() => {
 }
 
 .head {
+  /* L'en-tête et les onglets restent visibles en défilant : on passe d'un onglet à l'autre sans remonter. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--p-app-background);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--lineage-gap) var(--op-space-2);
   padding: 0 0 var(--op-space-4) var(--op-space-6);
+}
+
+.tabs {
+  grid-column: 1 / -1;
+  margin: var(--op-space-3) 0 calc(-1 * var(--op-space-4)) calc(-1 * var(--op-space-2));
 }
 
 .parent {
@@ -513,6 +551,11 @@ dt,
 .section {
   padding: var(--op-space-4) 0 var(--op-space-4) var(--op-space-6);
   border-top: 1px solid var(--p-app-line);
+}
+
+/* Sous les onglets, leur trait sépare déjà la première section. */
+[data-slot="tabs-content"] > .section:first-child {
+  border-top: 0;
 }
 
 dl,

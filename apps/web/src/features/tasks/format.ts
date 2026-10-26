@@ -96,3 +96,23 @@ export function dueHint(day: string, now = new Date()) {
     overdue: true,
   }
 }
+
+/**
+ * Moment d'une activité, court : « aujourd'hui », « hier », puis le jour (« 14 oct. »).
+ * Les jours se comptent en heure locale.
+ */
+export function formatMoment(dateTime: string, now = new Date()) {
+  const moment = new Date(dateTime)
+  const day = Date.UTC(moment.getFullYear(), moment.getMonth(), moment.getDate())
+  const days = Math.round((todayUtc(now) - day) / DAY_MS)
+  if (days === 0)
+    return 'aujourd\'hui'
+  if (days === 1)
+    return 'hier'
+  return formatDay(new Date(day).toISOString().slice(0, 10), now)
+}
+
+/** Moment complet, pour l'infobulle : « 14 octobre 2026 à 09:12 ». */
+export function formatFullMoment(dateTime: string) {
+  return new Date(dateTime).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
+}

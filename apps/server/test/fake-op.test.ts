@@ -1,4 +1,4 @@
-import type { FakeOp } from './support/fake-op.js'
+import type { FakeOp, FakeUser } from './support/fake-op.js'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { FAKE_STATUSES, startFakeOp } from './support/fake-op.js'
 
@@ -276,8 +276,10 @@ describe('faux serveur OP', () => {
   })
 
   describe('activités', () => {
+    let alice: FakeUser
+
     beforeEach(() => {
-      const alice = op.addUser({ name: 'Alice', token: 'tok-alice' })
+      alice = op.addUser({ name: 'Alice', token: 'tok-alice' })
       op.addProject({
         id: 1,
         identifier: 'alpha',
@@ -308,8 +310,37 @@ describe('faux serveur OP', () => {
           _type: 'Activity::Comment',
           comment: expect.objectContaining({ raw: 'Second' }),
           _links: expect.objectContaining({
-            user: expect.objectContaining({ title: 'Alice' }),
+            user: { href: `/api/v3/users/${alice.id}` },
           }),
+        }),
+      ])
+    })
+
+    it('donne le nom de l\'auteur d\'une activité par sa ressource utilisateur', async () => {
+      const response = await getAs('tok-alice', `/api/v3/users/${alice.id}`)
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ _type: 'User', id: alice.id, name: 'Alice' })
+    })
+
+    it('marque la première activité comme la création de la tâche, puis décrit les modifications', async () => {
+      op.addActivity({ workPackageId: 1, createdAt: '2026-01-01T10:00:00Z' })
+      op.addActivity({
+        workPackageId: 1,
+        details: ['Status changed from New to Closed'],
+        createdAt: '2026-01-02T10:00:00Z',
+      })
+
+      const response = await getAs('tok-alice', '/api/v3/work_packages/1/activities')
+
+      expect((await response.json())._embedded.elements).toEqual([
+        expect.objectContaining({ _type: 'Activity', version: 1, details: [] }),
+        expect.objectContaining({
+          _type: 'Activity',
+          version: 2,
+          details: [
+            expect.objectContaining({ raw: 'Status changed from New to Closed' }),
+          ],
         }),
       ])
     })

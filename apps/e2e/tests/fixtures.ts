@@ -26,6 +26,16 @@ export interface Scenario {
       /** Statuts proposés par le formulaire OP pour cette tâche (transitions autorisées). */
       allowedStatusIds?: number[]
     }>
+    /** Historique des tâches, dans l'ordre : la première activité d'une tâche est sa création. */
+    activities?: Array<{
+      workPackageId: number
+      userId?: number | null
+      /** Commentaire markdown ; vide pour une modification. */
+      comment?: string
+      /** Modifications, une phrase par champ, comme OP les rédige. */
+      details?: string[]
+      createdAt?: string
+    }>
     /** Réponse imposée à la prochaine requête correspondante vers le faux OP. Usage unique. */
     interceptions?: Array<{ method?: string, path?: string, status: number, body?: unknown }>
   }

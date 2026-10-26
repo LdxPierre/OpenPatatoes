@@ -184,3 +184,45 @@ export function forEachTask(roots: TaskNode[], visit: (task: TaskNode) => void) 
     stack.push(...task.children)
   }
 }
+
+/**
+ * Activité d'une tâche dans OP : un commentaire, des modifications, ou les deux.
+ * `comment` est le HTML rendu par OP, assaini par le serveur ; `null` sans commentaire.
+ * `changes` décrit chaque modification en une phrase d'OP, en texte brut.
+ * `creation` marque la création de la tâche, qui n'a ni commentaire ni modification.
+ * `author` vaut `null` si OP ne donne pas son nom au jeton.
+ */
+export const taskActivitySchema = z.object({
+  id: z.number().int(),
+  author: opNamedRefSchema.nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  creation: z.boolean(),
+  comment: z.string().nullable(),
+  changes: z.array(z.string()),
+})
+
+export type TaskActivity = z.infer<typeof taskActivitySchema>
+
+/** Réponse de `GET /api/tasks/:id/activities` : l'historique de la tâche, du plus ancien au plus récent. */
+export const taskActivitiesResponseSchema = z.object({
+  activities: z.array(taskActivitySchema),
+})
+
+export type TaskActivitiesResponse = z.infer<typeof taskActivitiesResponseSchema>
+
+/** Plus long commentaire accepté, en caractères. */
+export const TASK_COMMENT_MAX_LENGTH = 100_000
+
+/** Corps de `POST /api/tasks/:id/activities` : un commentaire en markdown, non vide. */
+export const taskCommentSchema = z.strictObject({
+  comment: z.string().trim().min(1).max(TASK_COMMENT_MAX_LENGTH),
+})
+
+export type TaskComment = z.infer<typeof taskCommentSchema>
+
+/** Réponse de `POST /api/tasks/:id/activities` : le commentaire tel qu'OP l'a enregistré. */
+export const taskActivityResponseSchema = z.object({
+  activity: taskActivitySchema,
+})
+
+export type TaskActivityResponse = z.infer<typeof taskActivityResponseSchema>
