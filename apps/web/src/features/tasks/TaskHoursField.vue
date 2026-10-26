@@ -84,7 +84,6 @@ function cancel() {
         :aria-labelledby="`${id}-label`"
         :aria-invalid="invalid || undefined"
         :aria-describedby="invalid ? `${id}-error` : undefined"
-        :size="Math.max(text.length, 1)"
         @keydown.enter.prevent="save(true)"
         @keydown.escape.stop.prevent="cancel"
         @blur="leave"
@@ -177,10 +176,15 @@ dd {
   align-items: baseline;
 }
 
-/* Le champ prend la place exacte du nombre : le contour de focus suffit à le signaler. */
+/*
+ * Largeur fixe, de quoi tenir « 1 h 30 » ou « 12,75 » : le champ ne change pas de taille
+ * pendant la saisie. Aligné à droite, le nombre reste collé à son unité.
+ * Le contour de focus suffit à le signaler.
+ */
 .edit input {
   box-sizing: content-box;
-  min-width: 1.5ch;
+  width: 6ch;
+  text-align: right;
   margin: 0 calc(-1 * var(--bleed));
   padding: 0 var(--bleed);
   border: 0;
