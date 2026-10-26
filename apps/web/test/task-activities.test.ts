@@ -245,4 +245,44 @@ describe('activité d\'une tâche', () => {
     expect(tab(wrapper, 'Activité').attributes('aria-selected')).toBe('true')
     expect(wrapper.find('.feed-section').text()).toContain('Aucune activité pour l\'instant.')
   })
+
+  it('remplace la dernière activité quand OP y fond le commentaire', async () => {
+    fakeApi.on('POST', '/tasks/11/activities', () => ({
+      activity: { ...history[2]!, comment: '<p>Et voilà.</p>' },
+    }))
+    const wrapper = await openApp('/projets/1/taches/11')
+    await openActivity(wrapper)
+
+    await textarea(wrapper).setValue('Et voilà.')
+    await wrapper.find('form.composer').trigger('submit')
+    await flushPromises()
+
+    const items = feedItems(wrapper)
+    expect(items).toHaveLength(3)
+    expect(items[2]!.find('.markdown').text()).toBe('Et voilà.')
+    expect(items[2]!.findAll('.comment-changes li').map(item => item.text())).toEqual(history[2]!.changes)
+  })
+
+  it('garde le brouillon de chaque tâche, et l\'échec d\'un envoi sur sa tâche', async () => {
+    let fail: (error: Error) => void = () => {}
+    fakeApi.on('POST', '/tasks/11/activities', () => new Promise((_resolve, reject) => {
+      fail = reject
+    }))
+    const wrapper = await openApp('/projets/1/taches/11', { 11: history, 20: [] })
+    await openActivity(wrapper)
+    await textarea(wrapper).setValue('Commentaire sur la 11')
+    await wrapper.find('form.composer').trigger('submit')
+
+    await wrapper.findAll('[role="treeitem"]').find(item => item.text().includes('Contrat de maintenance'))!.trigger('click')
+    await expectNavigatedTo('/projets/1/taches/20')
+    expect((textarea(wrapper).element as HTMLTextAreaElement).value).toBe('')
+    fail(new ApiError(503, 'op_unavailable'))
+    await flushPromises()
+    expect(wrapper.find('.composer [role="alert"]').exists()).toBe(false)
+
+    await wrapper.findAll('[role="treeitem"]').find(item => item.text().includes('Parcours de connexion'))!.trigger('click')
+    await expectNavigatedTo('/projets/1/taches/11')
+    expect((textarea(wrapper).element as HTMLTextAreaElement).value).toBe('Commentaire sur la 11')
+    expect(wrapper.find('.composer [role="alert"]').text()).toContain('OpenProject ne répond pas')
+  })
 })

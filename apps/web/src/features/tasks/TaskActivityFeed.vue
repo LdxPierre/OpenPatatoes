@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TaskActivity } from '@openpatatoes/shared'
 import type { OpErrorMessages } from '@/shared/api/op-error'
-import { shallowRef, watch } from 'vue'
+import { computed, shallowReactive } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { Button } from '@/shared/components/ui/button'
 import { formatFullMoment, formatMoment } from './format'
@@ -13,7 +13,7 @@ import { useTaskActivitiesQuery, useTaskCommentMutation } from './tasks'
  */
 const props = defineProps<{ taskId: number }>()
 
-const activities = useTaskActivitiesQuery(() => props.taskId, true)
+const activities = useTaskActivitiesQuery(() => props.taskId)
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject ne vous permet pas de lire l\'activité de cette tâche. Vérifiez vos droits sur son projet dans OpenProject.',
@@ -27,26 +27,32 @@ const commentErrorMessages: OpErrorMessages = {
   fallback: 'L\'app n\'a pas pu envoyer le commentaire. Il est gardé dans le champ : réessayez dans un instant.',
 }
 
-/** Brouillon du commentaire. Il reste en place si l'envoi échoue. */
-const draft = shallowRef('')
-const commentMutation = useTaskCommentMutation()
-
-watch(() => props.taskId, () => {
-  draft.value = ''
-  commentMutation.reset()
+/**
+ * Brouillons des commentaires, un par tâche : passer à une autre tâche ne perd pas ce qui est en
+ * cours d'écriture. Un brouillon reste en place si l'envoi échoue.
+ */
+const drafts = shallowReactive(new Map<number, string>())
+const draft = computed({
+  get: () => drafts.get(props.taskId) ?? '',
+  set: (value: string) => drafts.set(props.taskId, value),
 })
+
+const commentMutation = useTaskCommentMutation()
+/** Le dernier envoi concerne-t-il la tâche affichée ? Son attente et son échec ne s'affichent que sur elle. */
+const sendingHere = computed(() => commentMutation.variables.value?.taskId === props.taskId)
+const sending = computed(() => sendingHere.value && commentMutation.isPending.value)
+const sendError = computed(() => sendingHere.value
+  ? commentMutation.error.value
+  : null)
 
 function send() {
   const comment = draft.value.trim()
+  // Un envoi à la fois : l'état de la mutation suit ainsi toujours le dernier.
   if (!comment || commentMutation.isPending.value)
     return
   const taskId = props.taskId
   commentMutation.mutate({ taskId, comment }, {
-    onSuccess: () => {
-      // L'utilisateur a pu passer à une autre tâche pendant l'envoi : son brouillon n'est pas celui-ci.
-      if (props.taskId === taskId)
-        draft.value = ''
-    },
+    onSuccess: () => drafts.delete(taskId),
   })
 }
 
@@ -133,19 +139,19 @@ function changeSummary(activity: TaskActivity) {
         aria-label="Commentaire"
         placeholder="Commenter"
         rows="3"
-        :readonly="commentMutation.isPending.value"
+        :readonly="sending"
         @keydown.enter.ctrl.prevent="send"
         @keydown.enter.meta.prevent="send"
       />
       <div class="composer-actions">
         <span class="hint">Markdown accepté. Ctrl + Entrée pour envoyer.</span>
         <Button type="submit" :disabled="!draft.trim() || commentMutation.isPending.value">
-          {{ commentMutation.isPending.value ? 'Envoi…' : 'Commenter' }}
+          {{ sending ? 'Envoi…' : 'Commenter' }}
         </Button>
       </div>
-      <div v-if="commentMutation.error.value" class="error">
+      <div v-if="sendError" class="error">
         <OpErrorAlert
-          :error="commentMutation.error.value"
+          :error="sendError"
           :messages="commentErrorMessages"
           @retry="send"
         />

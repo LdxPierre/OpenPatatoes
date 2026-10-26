@@ -267,7 +267,8 @@ export const opActivitySchema = z
   })
   .transform(({ id, version, comment, details, createdAt, _links }) => {
     const href = _links.user?.href
-    const userId = href && /\/\d+$/.test(href)
+    // L'auteur est un utilisateur : un autre lien ne désignerait pas la bonne ressource.
+    const userId = href && /\/users\/\d+$/.test(href)
       ? idFromHref(href)
       : null
     return {

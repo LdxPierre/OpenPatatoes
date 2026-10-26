@@ -85,13 +85,12 @@ function taskActivitiesQueryKey(taskId: number) {
   ]
 }
 
-/** Historique d'une tâche, du plus ancien au plus récent. La liste n'est lue qu'à la demande. */
-export function useTaskActivitiesQuery(taskId: MaybeRefOrGetter<number>, enabled: MaybeRefOrGetter<boolean>) {
+/** Historique d'une tâche, du plus ancien au plus récent. */
+export function useTaskActivitiesQuery(taskId: MaybeRefOrGetter<number>) {
   return useQuery({
     queryKey: computed(() => taskActivitiesQueryKey(toValue(taskId))),
     queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}/activities`, { schema: taskActivitiesResponseSchema, signal }),
     select: data => data.activities,
-    enabled: () => toValue(enabled),
   })
 }
 
@@ -101,7 +100,11 @@ export interface TaskCommentVariables {
   comment: string
 }
 
-/** Ajoute un commentaire markdown à une tâche ; une fois enregistré par OP, il s'ajoute à la fin de l'historique. */
+/**
+ * Ajoute un commentaire markdown à une tâche ; une fois enregistré par OP, il s'ajoute à la fin de l'historique.
+ * OP peut fondre le commentaire dans la dernière activité de l'utilisateur, si elle est récente :
+ * elle est alors remplacée, pas ajoutée une seconde fois.
+ */
 export function useTaskCommentMutation() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -115,10 +118,14 @@ export function useTaskCommentMutation() {
       queryClient.setQueryData<TaskActivitiesResponse>(
         taskActivitiesQueryKey(taskId),
         data => data && {
-          activities: [
-            ...data.activities,
-            activity,
-          ],
+          activities: data.activities.some(known => known.id === activity.id)
+            ? data.activities.map(known => known.id === activity.id
+                ? activity
+                : known)
+            : [
+                ...data.activities,
+                activity,
+              ],
         },
       )
     },

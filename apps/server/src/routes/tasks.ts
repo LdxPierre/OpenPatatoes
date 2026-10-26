@@ -39,25 +39,27 @@ function parentIdOf(api: OpApi, id: number): ResultAsync<number | null, OpError>
       : errAsync(error))
 }
 
-/**
- * Complète les activités avec le nom de leurs auteurs : OP ne le donne pas avec l'activité.
- * Chaque auteur n'est lu qu'une fois. Un auteur illisible n'empêche pas de lire l'historique :
- * il reste anonyme.
- */
+/** Nom de l'auteur d'une activité. Un auteur illisible reste anonyme : il n'empêche pas de lire l'historique. */
+function authorOf(api: OpApi, userId: number | null): ResultAsync<OpNamedRef | null, never> {
+  if (userId === null)
+    return okAsync(null)
+  return api.getPrincipal(userId).map((user): OpNamedRef | null => user).orElse(() => okAsync(null))
+}
+
+function toTaskActivity({ userId: _, ...activity }: OpActivity, author: OpNamedRef | null): TaskActivity {
+  return { ...activity, author }
+}
+
+/** Complète les activités avec le nom de leurs auteurs : OP ne le donne pas avec l'activité. Chaque auteur n'est lu qu'une fois. */
 function withAuthors(api: OpApi, activities: OpActivity[]): ResultAsync<TaskActivity[], never> {
   const userIds = [
     ...new Set(activities.flatMap(activity => activity.userId ?? [])),
   ]
-  return ResultAsync.combine(userIds.map(id =>
-    api.getPrincipal(id).map((user): OpNamedRef | null => user).orElse(() => okAsync(null)),
-  )).map((users) => {
+  return ResultAsync.combine(userIds.map(id => authorOf(api, id))).map((users) => {
     const authors = new Map(userIds.map((id, index) => [id, users[index] ?? null]))
-    return activities.map(({ userId, ...activity }) => ({
-      ...activity,
-      author: userId === null
-        ? null
-        : authors.get(userId) ?? null,
-    }))
+    return activities.map(activity => toTaskActivity(activity, activity.userId === null
+      ? null
+      : authors.get(activity.userId) ?? null))
   })
 }
 
@@ -191,10 +193,10 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
 
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
         api.addWorkPackageComment(params.data.id, body.data.comment)
-          .andThen(activity => withAuthors(api, [activity])),
+          .andThen(activity => authorOf(api, activity.userId).map(author => toTaskActivity(activity, author))),
       )
       return result.match(
-        ([activity]) => reply.code(201).send({ activity: activity! } satisfies TaskActivityResponse),
+        activity => reply.code(201).send({ activity } satisfies TaskActivityResponse),
         error => sendOpRouteError(reply, error),
       )
     })
