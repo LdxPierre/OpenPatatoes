@@ -12,7 +12,9 @@ if (!databaseUrl) {
 
 const db = createDatabase(databaseUrl)
 try {
-  await migrate(db, { migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)) })
+  await migrate(db, {
+    migrationsFolder: fileURLToPath(new URL('../drizzle', import.meta.url)),
+  })
 }
 finally {
   await db.$client.end()
