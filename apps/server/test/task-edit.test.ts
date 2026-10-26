@@ -438,6 +438,8 @@ describe('édition d\'une tâche', () => {
 
     it('liste les transitions d\'état, les types et les priorités du formulaire OP de la tâche', async () => {
       task.allowedStatusIds = [FAKE_STATUSES.closed.id, FAKE_STATUSES.inProgress.id]
+      // Le formulaire exige la version actuelle : la tâche a déjà été modifiée.
+      op.touchWorkPackage(10)
 
       const response = await getAllowedValues(10)
 
@@ -459,7 +461,7 @@ describe('édition d\'une tâche', () => {
         ],
       })
       // Lire le formulaire ne modifie pas la tâche.
-      expect(task.lockVersion).toBe(0)
+      expect(task.lockVersion).toBe(1)
     })
 
     it('ne propose aucune valeur pour un champ qu\'OP ne laisse pas modifier', async () => {

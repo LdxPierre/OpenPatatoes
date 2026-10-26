@@ -545,10 +545,13 @@ export async function startFakeOp(): Promise<FakeOp> {
     },
   )
 
-  app.post<{ Params: { id: string } }>('/api/v3/work_packages/:id/form', async (request, reply) => {
+  app.post<{ Params: { id: string }, Body: WorkPackagePatch }>('/api/v3/work_packages/:id/form', async (request, reply) => {
     const workPackage = accessibleWorkPackage(request, reply, Number(request.params.id))
     if (!workPackage)
       return reply
+    // Comme OP 17, le formulaire de modification exige la version actuelle de la tâche.
+    if (request.body?.lockVersion !== workPackage.lockVersion)
+      return sendOpError(reply, 409)
     const allowedStatuses = workPackage.allowedStatusIds.flatMap(id => findStatus(id) ?? [])
     const namedField = (type: string, collection: string, allowed: FakeNamedRef[]) => ({
       type,

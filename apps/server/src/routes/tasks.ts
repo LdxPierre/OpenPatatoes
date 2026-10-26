@@ -102,8 +102,10 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       if (!params.success)
         return reply.code(400).send({ error: 'invalid_request' })
 
+      // Le formulaire exige la version actuelle de la tâche : elle est relue juste avant.
+      const { id } = params.data
       const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
-        api.getWorkPackageForm(params.data.id),
+        api.getWorkPackage(id).andThen(task => api.getWorkPackageForm(id, task.lockVersion)),
       )
       return result.match(
         allowedValues => allowedValues satisfies TaskAllowedValuesResponse,

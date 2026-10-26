@@ -251,6 +251,12 @@ describe('faux serveur OP', () => {
       ])
     })
 
+    it('refuse le formulaire sans la version actuelle de la tâche, comme OP 17', async () => {
+      const response = await sendAs('tok-alice', 'POST', '/api/v3/work_packages/1/form', {})
+
+      expect(response.status).toBe(409)
+    })
+
     it('refuse une transition d\'état non autorisée', async () => {
       const response = await patch({
         lockVersion: 0,

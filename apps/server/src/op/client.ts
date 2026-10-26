@@ -47,8 +47,11 @@ export interface OpApi {
   updateWorkPackage: (id: number, changes: TaskChanges) => ResultAsync<OpWorkPackageDetail, OpError>
   /** Utilisateurs qu'OP accepte comme assignés de la tâche. */
   listAvailableAssignees: (workPackageId: number) => ResultAsync<OpUser[], OpError>
-  /** États, types et priorités qu'OP accepte pour la tâche, lus dans son formulaire de modification. */
-  getWorkPackageForm: (id: number) => ResultAsync<OpWorkPackageForm, OpError>
+  /**
+   * États, types et priorités qu'OP accepte pour la tâche, lus dans son formulaire de modification.
+   * OP exige la version actuelle de la tâche : une autre donne un conflit (409).
+   */
+  getWorkPackageForm: (id: number, lockVersion: number) => ResultAsync<OpWorkPackageForm, OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -227,8 +230,8 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
         listAvailableAssignees: workPackageId =>
           getAll(`/work_packages/${workPackageId}/available_assignees`, opAvailableAssigneeSchema)
             .map(assignees => assignees.filter(assignee => assignee !== null)),
-        // Un corps vide : le formulaire part de la tâche enregistrée, sans rien modifier.
-        getWorkPackageForm: id => post(`/work_packages/${id}/form`, opWorkPackageFormSchema, {}),
+        // Sans autre champ que la version : le formulaire part de la tâche enregistrée, sans rien modifier.
+        getWorkPackageForm: (id, lockVersion) => post(`/work_packages/${id}/form`, opWorkPackageFormSchema, { lockVersion }),
       }
     },
   }
