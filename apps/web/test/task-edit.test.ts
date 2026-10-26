@@ -373,7 +373,9 @@ describe('modification d\'une tâche', () => {
     expect(picker(wrapper, 'État').classes()).toContain('pending')
     expect(treeRow(wrapper, 'Parcours de connexion').find('.status').text()).toBe('En cours')
 
-    answer.resolve({ task: { ...stored, status: enCours, lockVersion: 5 } })
+    answer.resolve({
+      task: { ...stored, status: enCours, lockVersion: 5 },
+    })
     await flushPromises()
     expect(picker(wrapper, 'État').text()).toBe('En cours')
     expect(picker(wrapper, 'État').classes()).not.toContain('pending')
@@ -403,9 +405,16 @@ describe('modification d\'une tâche', () => {
     const haute = { id: 9, name: 'Haute' }
     const answers = [
       { ...stored, type: bug, lockVersion: 5 },
-      { ...stored, type: bug, priority: haute, lockVersion: 6 },
+      {
+        ...stored,
+        type: bug,
+        priority: haute,
+        lockVersion: 6,
+      },
     ]
-    fakeApi.on('PATCH', '/tasks/11', () => ({ task: answers.shift() }))
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: answers.shift(),
+    }))
 
     expect(picker(wrapper, 'Priorité').text()).toBe('Non renseignée')
     await selectAllowedValue(wrapper, 'type', bug)
@@ -457,7 +466,10 @@ describe('état et assigné dans l\'arbre', () => {
   })
 
   it('rend l\'arbre tel quel quand ni l\'état ni l\'assigné ne changent', () => {
-    expect(withTreeFields(tree, 11, { status: { ...nouveau }, assignee: { ...camille } })).toBe(tree)
+    expect(withTreeFields(tree, 11, {
+      status: { ...nouveau },
+      assignee: { ...camille },
+    })).toBe(tree)
     expect(withTreeFields(tree, 99, { status: enCours, assignee: bruno })).toBe(tree)
   })
 })

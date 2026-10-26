@@ -73,10 +73,18 @@ function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigne
       : `/api/v3/${collection}/${id}`,
   })
   const links = {
-    ...(assigneeId !== undefined && { assignee: link('users', assigneeId) }),
-    ...(statusId !== undefined && { status: link('statuses', statusId) }),
-    ...(typeId !== undefined && { type: link('types', typeId) }),
-    ...(priorityId !== undefined && { priority: link('priorities', priorityId) }),
+    ...(assigneeId !== undefined && {
+      assignee: link('users', assigneeId),
+    }),
+    ...(statusId !== undefined && {
+      status: link('statuses', statusId),
+    }),
+    ...(typeId !== undefined && {
+      type: link('types', typeId),
+    }),
+    ...(priorityId !== undefined && {
+      priority: link('priorities', priorityId),
+    }),
   }
   return {
     lockVersion,

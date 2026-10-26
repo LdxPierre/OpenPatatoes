@@ -32,14 +32,14 @@ const emit = defineEmits<{
   retry: []
 }>()
 
-const open = defineModel<boolean>('open', { default: false })
-
 defineSlots<{
   /** Valeur dans le bouton ; son nom par défaut. */
   value?: (props: { value: T }) => unknown
   /** Choix dans la liste ; son nom par défaut. */
   choice?: (props: { choice: T }) => unknown
 }>()
+
+const open = defineModel<boolean>('open', { default: false })
 
 const NONE = 'aucun'
 

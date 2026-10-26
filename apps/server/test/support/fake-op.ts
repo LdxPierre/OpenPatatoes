@@ -556,7 +556,13 @@ export async function startFakeOp(): Promise<FakeOp> {
       required: true,
       writable: true,
       _embedded: {
-        allowedValues: allowed.map(ref => ({ _type: type, ...ref, _links: { self: namedLink(collection, ref) } })),
+        allowedValues: allowed.map(ref => ({
+          _type: type,
+          ...ref,
+          _links: {
+            self: namedLink(collection, ref),
+          },
+        })),
       },
       _links: {
         allowedValues: allowed.map(ref => namedLink(collection, ref)),

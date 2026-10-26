@@ -197,7 +197,9 @@ describe('édition d\'une tâche', () => {
     expect(response.statusCode).toBe(422)
     expect(response.json()).toMatchObject({
       error: 'op_rejected',
-      task: { type: { id: FAKE_TYPES.task.id, name: 'Task' } },
+      task: {
+        type: { id: FAKE_TYPES.task.id, name: 'Task' },
+      },
     })
   })
 
@@ -461,7 +463,10 @@ describe('édition d\'une tâche', () => {
     })
 
     it('ne propose aucune valeur pour un champ qu\'OP ne laisse pas modifier', async () => {
-      const field = (allowedValues: object[]) => ({ writable: false, _embedded: { allowedValues } })
+      const field = (allowedValues: object[]) => ({
+        writable: false,
+        _embedded: { allowedValues },
+      })
       op.interceptNext({
         method: 'POST',
         path: '/api/v3/work_packages/10/form',
@@ -470,9 +475,25 @@ describe('édition d\'une tâche', () => {
           _type: 'Form',
           _embedded: {
             schema: {
-              status: field([{ _type: 'Status', id: 1, name: 'New', isClosed: false }]),
-              type: field([{ _type: 'Type', id: 1, name: 'Task' }]),
-              priority: { writable: true, _embedded: { allowedValues: [{ _type: 'Priority', id: 8, name: 'Normal' }] } },
+              status: field([
+                {
+                  _type: 'Status',
+                  id: 1,
+                  name: 'New',
+                  isClosed: false,
+                },
+              ]),
+              type: field([
+                { _type: 'Type', id: 1, name: 'Task' },
+              ]),
+              priority: {
+                writable: true,
+                _embedded: {
+                  allowedValues: [
+                    { _type: 'Priority', id: 8, name: 'Normal' },
+                  ],
+                },
+              },
             },
           },
         },
@@ -484,7 +505,9 @@ describe('édition d\'une tâche', () => {
       expect(response.json()).toEqual({
         statuses: [],
         types: [],
-        priorities: [{ id: 8, name: 'Normal' }],
+        priorities: [
+          { id: 8, name: 'Normal' },
+        ],
       })
     })
 
