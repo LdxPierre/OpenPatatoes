@@ -205,7 +205,7 @@ describe('description d\'une tâche', () => {
     const wrapper = await openTask()
 
     await writeDescription(wrapper, 'Brouillon')
-    await wrapper.find('aside .editor').trigger('keydown', { key: 'Escape' })
+    await wrapper.find('aside .md-editor').trigger('keydown', { key: 'Escape' })
     expect(wrapper.find('aside.task-detail').exists()).toBe(true)
 
     await button(wrapper, 'Annuler').trigger('click')

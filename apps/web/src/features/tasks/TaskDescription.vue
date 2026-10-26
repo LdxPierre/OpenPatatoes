@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useResizeObserver } from '@vueuse/core'
 import { MdEditor, MdPreview } from 'md-editor-v3'
-import { computed, nextTick, ref, shallowRef, useId, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useId, useTemplateRef, watch } from 'vue'
 import { Button } from '@/shared/components/ui/button'
 import { useThemeMode } from '@/theme'
 import { MARKDOWN_LANGUAGE, MARKDOWN_TOOLBARS, sanitizePreview } from './markdown'
@@ -33,15 +33,31 @@ const draft = ref('')
 const editButton = useTemplateRef('editButton')
 const editorBox = useTemplateRef('editorBox')
 
+/**
+ * Défilement de la page avant l'éditeur. Agrandi, md-editor-v3 bloque celui de la page,
+ * et ne le rend pas si l'éditeur se ferme sans le réduire (enregistrement par Ctrl+S).
+ */
+let pageOverflow = ''
+
 async function edit(text = props.description) {
   draft.value = text
+  pageOverflow = document.body.style.overflow
   editing.value = true
   await nextTick()
   editorBox.value?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
 }
 
-async function stopEditing() {
+function closeEditor() {
+  if (!editing.value)
+    return
   editing.value = false
+  document.body.style.overflow = pageOverflow
+}
+
+onBeforeUnmount(closeEditor)
+
+async function stopEditing() {
+  closeEditor()
   await nextTick()
   ;(editButton.value?.$el as HTMLElement | undefined)?.focus()
 }
@@ -84,8 +100,7 @@ watch(() => props.description, () => {
       Description
     </h3>
 
-    <!-- Échap ne ferme pas le détail : il ferait perdre la saisie. -->
-    <div v-if="editing" ref="editorBox" class="editor" @keydown.esc.stop>
+    <div v-if="editing" ref="editorBox" class="editor">
       <MdEditor
         v-model="draft"
         :editor-id="`${id}-editor`"
@@ -169,7 +184,7 @@ h3 {
   overflow: hidden;
   border-radius: var(--p-border-radius-md);
   font-size: var(--op-text-md);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .preview.expanded {
@@ -186,6 +201,10 @@ h3 {
 /* Refusée par OP : la description revenue à l'état réel est marquée, l'alerte dit pourquoi. */
 .preview.rejected {
   background: var(--p-app-error-background);
+}
+
+.preview.rejected :deep(.md-editor-preview) {
+  color: var(--p-app-error-color);
 }
 
 .actions {

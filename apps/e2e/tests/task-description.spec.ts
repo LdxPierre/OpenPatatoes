@@ -99,6 +99,7 @@ test.describe('description d\'une tâche', () => {
     await page.keyboard.type(' brouillon')
     await page.keyboard.press('Escape')
     await expect(panel).toBeVisible()
+    await expect(description.locator('.cm-content')).toContainText('brouillon')
 
     await description.getByRole('button', { name: 'Annuler' }).click()
     await expect(description.locator('.cm-content')).toHaveCount(0)

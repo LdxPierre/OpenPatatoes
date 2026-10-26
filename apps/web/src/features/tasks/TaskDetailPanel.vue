@@ -8,6 +8,7 @@ import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
+import { isFromMarkdownEditor } from './markdown'
 import TaskAllowedValuePicker from './TaskAllowedValuePicker.vue'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
 import TaskDescription from './TaskDescription.vue'
@@ -36,7 +37,11 @@ const preview = computed(() => props.tree && taskPreview(props.tree, props.taskI
 const header = computed(() => detail.data.value ?? preview.value)
 
 // Les champs et la liste des assignés arrêtent leur Échap : il ne ferme pas le détail.
-onKeyStroke('Escape', () => emit('close'))
+onKeyStroke('Escape', (event) => {
+  // Échap dans l'éditeur de la description ferait perdre la saisie.
+  if (!isFromMarkdownEditor(event))
+    emit('close')
+})
 
 const closeButton = useTemplateRef('closeButton')
 

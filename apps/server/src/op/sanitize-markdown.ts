@@ -7,12 +7,13 @@ const SCRIPT_TAG = /<(\/?)script\b(?:[^>"'<]|"[^"]*"|'[^']*')*>?/gi
 /**
  * Attribut d'événement (`onclick`, `onerror`…) et sa valeur, cherché partout dans le texte et non
  * dans les seules balises : le markdown ne dit pas sûrement où le navigateur fermera une balise
- * (markdown-it échappe les guillemets du texte, pas ceux du HTML brut). Dans une balise, un nom
- * d'attribut suit une espace, une barre oblique ou le guillemet qui ferme la valeur précédente.
- * Une valeur entre guillemets ne passe pas la ligne : si elle continue, seul le nom part,
- * et le `=` qui reste ne fait plus qu'un attribut inerte.
+ * (markdown-it échappe les guillemets du texte, pas ceux du HTML brut). Pour la même raison, le
+ * caractère qui précède n'est pas celui que verra le navigateur : markdown-it retire par exemple
+ * le `>` d'une citation en début de ligne. Seul un caractère de nom (`data-onclick`) écarte donc
+ * la correspondance. Une valeur entre guillemets ne passe pas la ligne : si elle continue, seul
+ * le nom part, et le `=` qui reste ne fait plus qu'un attribut inerte.
  */
-const EVENT_ATTRIBUTE = /(?<=[\s/"'])on[a-z]+\s*=\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s>"']*)/gi
+const EVENT_ATTRIBUTE = /(?<![\w-])on[a-z]+\s*=\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s>"']*)/gi
 
 /**
  * Passes au-delà desquelles la description est jugée fabriquée pour déjouer l'assainissement.

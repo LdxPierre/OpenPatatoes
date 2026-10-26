@@ -46,6 +46,14 @@ export function sanitizePreview(html: string) {
   })
 }
 
+/**
+ * La touche vient-elle de l'éditeur markdown ? Ses fenêtres sont placées à la fin de la page,
+ * hors de l'éditeur : elles comptent aussi.
+ */
+export function isFromMarkdownEditor(event: Event) {
+  return event.target instanceof Element && !!event.target.closest('.md-editor, .md-editor-modal-container')
+}
+
 config({
   // Les descriptions d'OP mêlent du HTML au markdown (tableaux, images dimensionnées) :
   // md-editor-v3 l'ignore par défaut, il est rendu ici puis assaini par `sanitizePreview`.
