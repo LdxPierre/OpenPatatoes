@@ -1,8 +1,13 @@
 import { TASK_HOURS_MAX, TASK_HOURS_MIN } from '@openpatatoes/shared'
 
+/** Nombre d'heures décimales, arrondi au centième pour l'affichage, sans unité : « 12,5 ». */
+export function formatHoursNumber(hours: number) {
+  return hours.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+}
+
 /** Heures décimales, arrondies au centième pour l'affichage : « 12,5 h ». */
 export function formatHours(hours: number) {
-  return `${hours.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}\u202Fh`
+  return `${formatHoursNumber(hours)}\u202Fh`
 }
 
 /** Heures à modifier dans un champ : « 12,5 », sans unité ni séparateur de milliers. */

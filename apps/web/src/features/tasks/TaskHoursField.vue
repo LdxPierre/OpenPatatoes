@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, useId, useTemplateRef } from 'vue'
-import { formatHours, hoursInputText, parseHours } from './format'
+import { formatHours, formatHoursNumber, hoursInputText, parseHours } from './format'
 
 /**
  * Temps d'une tâche, modifiable sur place : le nombre devient un champ de même taille,
@@ -74,7 +74,7 @@ function cancel() {
     <dt :id="`${id}-label`">
       {{ label }}
     </dt>
-    <dd v-if="editing" class="edit">
+    <dd v-if="editing" class="box edit">
       <input
         ref="input"
         v-model="text"
@@ -84,27 +84,28 @@ function cancel() {
         :aria-labelledby="`${id}-label`"
         :aria-invalid="invalid || undefined"
         :aria-describedby="invalid ? `${id}-error` : undefined"
-        :size="Math.max(text.length, 1)"
         @keydown.enter.prevent="save(true)"
         @keydown.escape.stop.prevent="cancel"
         @blur="leave"
         @input="invalid = false"
       >
-      <span class="unit" aria-hidden="true">h</span>
+      <span class="unit" aria-hidden="true">&#x202F;h</span>
       <span v-if="invalid" :id="`${id}-error`" class="invalid" role="alert">Saisissez des heures, par exemple 2,5 ou 1 h 30.</span>
     </dd>
     <dd v-else>
       <button
         ref="valueButton"
         type="button"
-        class="value"
+        class="box value"
         :class="{ pending, rejected, empty: value === null }"
         :aria-label="`${label} : ${value === null ? 'non renseigné' : formatHours(value)}. Modifier`"
         :title="pending ? 'Enregistrement dans OpenProject…' : undefined"
         @click="edit"
       >
         <span v-if="value === null">Non renseigné</span>
-        <span v-else class="op-num">{{ formatHours(value) }}</span>
+        <template v-else>
+          <span class="op-num">{{ formatHoursNumber(value) }}</span><span class="unit">&#x202F;h</span>
+        </template>
       </button>
     </dd>
   </div>
@@ -117,7 +118,11 @@ function cancel() {
 
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  /*
+   * Centré dans la ligne de 28 px, et non sur la ligne de base : celle-ci dépend de la taille
+   * du texte, qui change entre une valeur, « Non renseigné » et le champ de saisie.
+   */
+  align-items: center;
   gap: 0 var(--op-space-2);
 }
 
@@ -130,21 +135,30 @@ dd {
   margin: 0;
 }
 
-.value,
-.edit input {
-  font: inherit;
+/*
+ * Même boîte en lecture et en saisie : largeur fixe, nombre aligné à droite contre son unité.
+ * Rien ne bouge quand la valeur devient un champ, ni d'une saisie à l'autre.
+ * La largeur tient « Non renseigné » comme « 1 h 30 ».
+ */
+.box {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: calc(5.5rem + 2 * var(--bleed));
+  height: 1.75rem;
+  margin: 0 calc(-1 * var(--bleed));
+  padding: 0 var(--bleed);
+  border-radius: var(--p-border-radius-md);
   font-size: var(--op-text-lg);
   font-weight: 500;
-  line-height: 1.75rem;
   color: var(--p-text-color);
 }
 
 .value {
-  margin: 0 calc(-1 * var(--bleed));
-  padding: 0 var(--bleed);
   border: 0;
-  border-radius: var(--p-border-radius-md);
   background: none;
+  font-family: inherit;
   cursor: text;
 }
 
@@ -171,46 +185,45 @@ dd {
   color: var(--p-app-error-color);
 }
 
+/* Le contour de focus est porté par la boîte, pour qu'il ait la même taille que la valeur. */
 .edit {
   position: relative;
-  display: inline-flex;
-  align-items: baseline;
+  background: var(--p-content-background);
 }
 
-/* Le champ prend la place exacte du nombre : le contour de focus suffit à le signaler. */
-.edit input {
-  box-sizing: content-box;
-  min-width: 1.5ch;
-  margin: 0 calc(-1 * var(--bleed));
-  padding: 0 var(--bleed);
-  border: 0;
-  border-radius: var(--p-border-radius-md);
-  background: var(--p-content-background);
+.edit:focus-within {
+  outline: var(--p-focus-ring-width) var(--p-focus-ring-style) var(--p-focus-ring-color);
   outline-offset: 0;
 }
 
-.edit input[aria-invalid] {
+.edit:has([aria-invalid]) {
   outline-color: var(--p-app-error-color);
 }
 
-.unit {
-  margin-left: calc(var(--bleed) + 0.2em);
-  font-size: var(--op-text-lg);
-  font-weight: 500;
+.edit input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: right;
+  outline: none;
 }
 
 /* Le message flotte sous le champ, sans déplacer les autres heures. */
 .invalid {
   position: absolute;
   top: calc(100% + var(--op-space-1));
-  left: calc(-1 * var(--bleed));
+  left: 0;
   z-index: 1;
   padding: var(--op-space-1) var(--op-space-2);
   border-radius: var(--p-border-radius-md);
   background: var(--p-content-background);
   box-shadow: var(--p-app-shadow-lift);
   width: max-content;
-  max-width: 13rem;
+  max-width: 11rem;
   font-size: var(--op-text-xs);
   color: var(--p-app-error-color);
 }
