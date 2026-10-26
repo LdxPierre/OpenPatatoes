@@ -1,4 +1,4 @@
-import type { TaskAssigneesResponse, TaskDetail, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
+import type { TaskAllowedValuesResponse, TaskAssigneesResponse, TaskDetail, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import type { OpApi } from '../op/client.js'
@@ -50,7 +50,7 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
     })
 
     /**
-     * Modifie le temps estimé, le temps restant ou l'assigné ; renvoie la tâche telle qu'OP l'a enregistrée.
+     * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type ou la priorité ; renvoie la tâche telle qu'OP l'a enregistrée.
      * Un refus d'OP renvoie aussi l'état réel de la tâche, pour que l'interface annule sa modification.
      */
     app.patch('/tasks/:id', async (request, reply) => {
@@ -92,6 +92,23 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       )
       return result.match(
         assignees => ({ assignees }) satisfies TaskAssigneesResponse,
+        error => sendOpRouteError(reply, error),
+      )
+    })
+
+    /** États, types et priorités qu'OP accepte pour la tâche : les transitions d'état viennent de son formulaire. */
+    app.get('/tasks/:id/allowed-values', async (request, reply) => {
+      const params = idParamsSchema.safeParse(request.params)
+      if (!params.success)
+        return reply.code(400).send({ error: 'invalid_request' })
+
+      // Le formulaire exige la version actuelle de la tâche : elle est relue juste avant.
+      const { id } = params.data
+      const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
+        api.getWorkPackage(id).andThen(task => api.getWorkPackageForm(id, task.lockVersion)),
+      )
+      return result.match(
+        allowedValues => allowedValues satisfies TaskAllowedValuesResponse,
         error => sendOpRouteError(reply, error),
       )
     })

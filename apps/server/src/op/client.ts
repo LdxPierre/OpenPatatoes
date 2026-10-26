@@ -1,6 +1,6 @@
 import type { TaskChanges } from '@openpatatoes/shared'
 import type { OpError } from './errors.js'
-import type { OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail } from './schemas.js'
+import type { OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail, OpWorkPackageForm } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -21,6 +21,7 @@ import {
   opStatusSchema,
   opUserSchema,
   opWorkPackageDetailSchema,
+  opWorkPackageFormSchema,
   opWorkPackageSchema,
 } from './schemas.js'
 
@@ -46,6 +47,11 @@ export interface OpApi {
   updateWorkPackage: (id: number, changes: TaskChanges) => ResultAsync<OpWorkPackageDetail, OpError>
   /** Utilisateurs qu'OP accepte comme assignés de la tâche. */
   listAvailableAssignees: (workPackageId: number) => ResultAsync<OpUser[], OpError>
+  /**
+   * États, types et priorités qu'OP accepte pour la tâche, lus dans son formulaire de modification.
+   * OP exige la version actuelle de la tâche : une autre donne un conflit (409).
+   */
+  getWorkPackageForm: (id: number, lockVersion: number) => ResultAsync<OpWorkPackageForm, OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -58,11 +64,31 @@ export interface OpClientOptions {
   baseUrl: string
 }
 
-/** Corps de `PATCH /work_packages/:id` : durées en ISO 8601, assigné en lien HAL. */
-function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigneeId }: TaskChanges) {
+/** Corps de `PATCH /work_packages/:id` : durées en ISO 8601, assigné, état, type et priorité en liens HAL. */
+function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigneeId, statusId, typeId, priorityId }: TaskChanges) {
   const duration = (hours: number | null) => (hours === null
     ? null
     : hoursToIsoDuration(hours))
+  /** Lien HAL vers la ressource ; `href: null` la retire. */
+  const link = (collection: string, id: number | null) => ({
+    href: id === null
+      ? null
+      : `/api/v3/${collection}/${id}`,
+  })
+  const links = {
+    ...(assigneeId !== undefined && {
+      assignee: link('users', assigneeId),
+    }),
+    ...(statusId !== undefined && {
+      status: link('statuses', statusId),
+    }),
+    ...(typeId !== undefined && {
+      type: link('types', typeId),
+    }),
+    ...(priorityId !== undefined && {
+      priority: link('priorities', priorityId),
+    }),
+  }
   return {
     lockVersion,
     ...(estimatedHours !== undefined && {
@@ -71,14 +97,8 @@ function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigne
     ...(remainingHours !== undefined && {
       remainingTime: duration(remainingHours),
     }),
-    ...(assigneeId !== undefined && {
-      _links: {
-        assignee: {
-          href: assigneeId === null
-            ? null
-            : `/api/v3/users/${assigneeId}`,
-        },
-      },
+    ...(Object.keys(links).length > 0 && {
+      _links: links,
     }),
   }
 }
@@ -116,7 +136,7 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
         url: string,
         label: string,
         schema: z.ZodType<T>,
-        { method = 'GET', body }: { method?: 'GET' | 'PATCH', body?: object } = {},
+        { method = 'GET', body }: { method?: 'GET' | 'PATCH' | 'POST', body?: object } = {},
       ): ResultAsync<T, OpError> => {
         const readJson = (response: Response) =>
           ResultAsync.fromPromise(
@@ -155,6 +175,8 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
       const get = <T>(path: string, schema: z.ZodType<T>) => request(`${apiRoot}${path}`, path, schema)
       const patch = <T>(path: string, schema: z.ZodType<T>, body: object) =>
         request(`${apiRoot}${path}`, path, schema, { method: 'PATCH', body })
+      const post = <T>(path: string, schema: z.ZodType<T>, body: object) =>
+        request(`${apiRoot}${path}`, path, schema, { method: 'POST', body })
 
       /** Suit les liens `nextByOffset` d'une collection jusqu'à la dernière page. */
       const getAll = <T>(
@@ -208,6 +230,8 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
         listAvailableAssignees: workPackageId =>
           getAll(`/work_packages/${workPackageId}/available_assignees`, opAvailableAssigneeSchema)
             .map(assignees => assignees.filter(assignee => assignee !== null)),
+        // Sans autre champ que la version : le formulaire part de la tâche enregistrée, sans rien modifier.
+        getWorkPackageForm: (id, lockVersion) => post(`/work_packages/${id}/form`, opWorkPackageFormSchema, { lockVersion }),
       }
     },
   }

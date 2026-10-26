@@ -179,7 +179,7 @@ describe('détail d\'une tâche', () => {
     expect(summary.find('.ref').text()).toBe('#12')
   })
 
-  it('affiche les propriétés renseignées, et seulement celles-là', async () => {
+  it('affiche les propriétés renseignées, et celles qui se modifient', async () => {
     details[30] = detail({
       id: 30,
       subject: 'Tâche complète',
@@ -208,8 +208,10 @@ describe('détail d\'une tâche', () => {
     delete details[30]
 
     const sparse = await openApp('/projets/1/taches/20')
+    // Le type et la priorité se modifient : ils restent affichés, même vides.
     expect(fields(sparse)).toEqual([
       ['Type', 'Tâche'],
+      ['Priorité', 'Non renseignée'],
     ])
   })
 

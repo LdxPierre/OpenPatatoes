@@ -47,6 +47,20 @@ export interface FakeNamedRef {
   name: string
 }
 
+/** Types de tâche du projet, proposés par le formulaire OP. */
+export const FAKE_TYPES = {
+  task: { id: 1, name: 'Task' },
+  milestone: { id: 2, name: 'Milestone' },
+  bug: { id: 7, name: 'Bug' },
+} as const satisfies Record<string, FakeNamedRef>
+
+/** Priorités de l'instance, proposées par le formulaire OP. */
+export const FAKE_PRIORITIES = {
+  low: { id: 7, name: 'Low' },
+  normal: { id: 8, name: 'Normal' },
+  high: { id: 9, name: 'High' },
+} as const satisfies Record<string, FakeNamedRef>
+
 export interface FakeWorkPackage {
   id: number
   projectId: number
@@ -297,7 +311,7 @@ interface WorkPackagePatch {
   estimatedTime?: string | null
   remainingTime?: string | null
   description?: { raw: string }
-  _links?: { assignee?: LinkPatch, status?: LinkPatch, parent?: LinkPatch }
+  _links?: { assignee?: LinkPatch, status?: LinkPatch, type?: LinkPatch, priority?: LinkPatch, parent?: LinkPatch }
 }
 
 function tokenFrom(request: FastifyRequest): string | undefined {
@@ -477,6 +491,16 @@ export async function startFakeOp(): Promise<FakeOp> {
         return constraintViolation(reply, 'status', 'Status is invalid because no valid transition exists.')
       }
 
+      // Comme OP, le type et la priorité se changent, mais ne se vident pas.
+      const typeLink = body._links?.type
+      const type = typeLink && Object.values(FAKE_TYPES).find(candidate => candidate.id === idFromHref(typeLink.href))
+      if (typeLink && !type)
+        return constraintViolation(reply, 'type', 'Type is not set to one of the allowed values.')
+      const priorityLink = body._links?.priority
+      const priority = priorityLink && Object.values(FAKE_PRIORITIES).find(candidate => candidate.id === idFromHref(priorityLink.href))
+      if (priorityLink && !priority)
+        return constraintViolation(reply, 'priority', 'Priority is not set to one of the allowed values.')
+
       const assigneeHref = body._links?.assignee?.href
       if (assigneeHref) {
         const project = state.projects.find(candidate => candidate.id === workPackage.projectId)
@@ -497,6 +521,10 @@ export async function startFakeOp(): Promise<FakeOp> {
         workPackage.assigneeId = idFromHref(body._links.assignee.href)
       if (body._links?.parent)
         workPackage.parentId = idFromHref(body._links.parent.href)
+      if (type)
+        workPackage.type = type
+      if (priority)
+        workPackage.priority = priority
       workPackage.statusId = statusId
       workPackage.lockVersion += 1
 
@@ -517,11 +545,32 @@ export async function startFakeOp(): Promise<FakeOp> {
     },
   )
 
-  app.post<{ Params: { id: string } }>('/api/v3/work_packages/:id/form', async (request, reply) => {
+  app.post<{ Params: { id: string }, Body: WorkPackagePatch }>('/api/v3/work_packages/:id/form', async (request, reply) => {
     const workPackage = accessibleWorkPackage(request, reply, Number(request.params.id))
     if (!workPackage)
       return reply
+    // Comme OP 17, le formulaire de modification exige la version actuelle de la tâche.
+    if (request.body?.lockVersion !== workPackage.lockVersion)
+      return sendOpError(reply, 409)
     const allowedStatuses = workPackage.allowedStatusIds.flatMap(id => findStatus(id) ?? [])
+    const namedField = (type: string, collection: string, allowed: FakeNamedRef[]) => ({
+      type,
+      name: type,
+      required: true,
+      writable: true,
+      _embedded: {
+        allowedValues: allowed.map(ref => ({
+          _type: type,
+          ...ref,
+          _links: {
+            self: namedLink(collection, ref),
+          },
+        })),
+      },
+      _links: {
+        allowedValues: allowed.map(ref => namedLink(collection, ref)),
+      },
+    })
     return {
       _type: 'Form',
       _embedded: {
@@ -540,6 +589,8 @@ export async function startFakeOp(): Promise<FakeOp> {
               allowedValues: allowedStatuses.map(status => statusLink(status.id)),
             },
           },
+          type: namedField('Type', 'types', Object.values(FAKE_TYPES)),
+          priority: namedField('Priority', 'priorities', Object.values(FAKE_PRIORITIES)),
         },
         validationErrors: {},
       },
@@ -634,8 +685,8 @@ export async function startFakeOp(): Promise<FakeOp> {
         responsibleId: null,
         startDate: null,
         dueDate: null,
-        type: { id: 1, name: 'Task' },
-        priority: { id: 8, name: 'Normal' },
+        type: FAKE_TYPES.task,
+        priority: FAKE_PRIORITIES.normal,
         version: null,
         category: null,
         description: '',
