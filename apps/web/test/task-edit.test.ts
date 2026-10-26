@@ -50,6 +50,7 @@ const stored: TaskDetail = {
   version: null,
   category: null,
   parent: { id: 10, subject: 'Refonte du portail client' },
+  description: '',
 }
 
 /** Réponse d'OP tenue en attente : le test décide quand elle arrive. */

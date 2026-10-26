@@ -92,6 +92,7 @@ describe('édition d\'une tâche', () => {
         version: null,
         category: null,
         parent: null,
+        description: '',
       },
     })
   })
@@ -152,6 +153,30 @@ describe('édition d\'une tâche', () => {
     expect(response.statusCode).toBe(200)
     expect(task.assigneeId).toBeNull()
     expect(response.json().task.assignee).toBeNull()
+  })
+
+  it('enregistre la description en markdown', async () => {
+    const response = await patchTask(10, { lockVersion: 0, description: 'Le **parcours** complet' })
+
+    expect(response.statusCode).toBe(200)
+    expect(task.description).toBe('Le **parcours** complet')
+    expect(response.json().task.description).toBe('Le **parcours** complet')
+  })
+
+  it('efface la description avec une chaîne vide', async () => {
+    task.description = 'Ancienne description'
+
+    const response = await patchTask(10, { lockVersion: 0, description: '' })
+
+    expect(response.statusCode).toBe(200)
+    expect(task.description).toBe('')
+  })
+
+  it('renvoie la description enregistrée sans ses scripts', async () => {
+    const response = await patchTask(10, { lockVersion: 0, description: 'Texte<script>alert(1)</script>' })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().task.description).toBe('Texte')
   })
 
   it('change l\'état vers une transition permise, avec son caractère fermé', async () => {
@@ -410,6 +435,10 @@ describe('édition d\'une tâche', () => {
     [
       'avec une priorité vide',
       { lockVersion: 0, priorityId: null },
+    ],
+    [
+      'avec une description nulle',
+      { lockVersion: 0, description: null },
     ],
     [
       'avec un champ inconnu',

@@ -1,0 +1,77 @@
+/**
+ * Balise `<script>` ouvrante ou fermante, attributs compris. Un `>` entre guillemets ne la ferme pas.
+ * Aucun motif ne peut repasser un `<` hors guillemets : chaque recherche reste linéaire.
+ */
+const SCRIPT_TAG = /<(\/?)script\b(?:[^>"'<]|"[^"]*"|'[^']*')*>?/gi
+
+/** Balise HTML ouvrante, attributs compris. */
+const TAG = /<[a-z](?:[^>"'<]|"[^"]*"|'[^']*')*>/gi
+
+/**
+ * Attribut d'événement (`onclick`, `onerror`…) et sa valeur. Le navigateur sépare les attributs
+ * par une espace, une barre oblique ou le guillemet qui ferme la valeur précédente.
+ */
+const EVENT_ATTRIBUTE = /(?<=[\s/"'])on[\w-]*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi
+
+/**
+ * Passes au-delà desquelles la description est jugée fabriquée pour déjouer l'assainissement.
+ * Une description ordinaire est stable dès la deuxième.
+ */
+const MAX_PASSES = 5
+
+/** Retire les éléments `<script>` avec leur contenu, et les balises `<script>` restées seules. */
+function removeScripts(markdown: string) {
+  let kept = ''
+  let from = 0
+  let open: { start: number, end: number } | null = null
+  for (const match of markdown.matchAll(SCRIPT_TAG)) {
+    const start = match.index
+    const end = start + match[0].length
+    const closing = match[1] === '/'
+    if (open && closing) {
+      kept += markdown.slice(from, open.start)
+      from = end
+      open = null
+    }
+    else if (!open && closing) {
+      kept += markdown.slice(from, start)
+      from = end
+    }
+    // Dans un script, une autre balise ouvrante n'est que du texte : seule la fermeture compte.
+    else if (!open) {
+      open = { start, end }
+    }
+  }
+  // Sans fermeture, seule la balise ouvrante part : le texte qui suit reste lisible.
+  if (open) {
+    kept += markdown.slice(from, open.start)
+    from = open.end
+  }
+  return kept + markdown.slice(from)
+}
+
+function removeOnce(markdown: string) {
+  return removeScripts(markdown).replace(TAG, tag => tag.replace(EVENT_ATTRIBUTE, ''))
+}
+
+/**
+ * Retire d'une description markdown les éléments `<script>` et les attributs d'événement
+ * de son HTML. Le reste du markdown et du HTML est gardé tel quel : l'interface assainit
+ * aussi l'aperçu, ceci n'est qu'une première barrière.
+ * Le code n'est pas épargné : un exemple de `<script>` dans un bloc de code disparaît aussi.
+ * Distinguer le code du HTML demanderait d'analyser le markdown comme le fait l'aperçu,
+ * et la moindre différence laisserait passer du HTML.
+ */
+export function sanitizeMarkdown(markdown: string) {
+  // Une suppression peut en recoller une autre (`<scr<script></script>ipt>`) : on recommence
+  // jusqu'à ce que rien ne change.
+  let current = markdown
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const next = removeOnce(current)
+    if (next === current)
+      return current
+    current = next
+  }
+  // Toujours instable : plus aucun HTML ne passe. Le markdown affiche `&lt;` comme un `<`.
+  return current.replaceAll('<', '&lt;')
+}

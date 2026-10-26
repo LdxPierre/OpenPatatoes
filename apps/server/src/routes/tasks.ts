@@ -60,7 +60,7 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
     })
 
     /**
-     * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité ou le parent ;
+     * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité, le parent ou la description ;
      * renvoie la tâche telle qu'OP l'a enregistrée. Un parent qui créerait un cycle est refusé avant
      * d'écrire dans OP, quelle que soit l'interface. Un refus renvoie aussi l'état réel de la tâche,
      * pour que l'interface annule sa modification.

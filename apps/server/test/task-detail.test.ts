@@ -79,6 +79,7 @@ describe('détail d\'une tâche', () => {
         version: null,
         category: null,
         parent: { id: 10, subject: 'Parent' },
+        description: '',
       },
     })
   })
@@ -180,6 +181,58 @@ describe('détail d\'une tâche', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json().task).toMatchObject({ estimatedHours: null, remainingHours: null, parent: null })
+  })
+
+  it('renvoie la description en markdown, vide quand la tâche n\'en a pas', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Décrite',
+      description: 'Du **markdown**\n\n- une liste',
+    })
+    op.addWorkPackage({ id: 11, projectId: 1, subject: 'Sans description' })
+
+    expect((await getTask(10)).json().task.description).toBe('Du **markdown**\n\n- une liste')
+    expect((await getTask(11)).json().task.description).toBe('')
+  })
+
+  it('retire de la description les scripts et les attributs d\'événement venus d\'OP', async () => {
+    op.addWorkPackage({
+      id: 10,
+      projectId: 1,
+      subject: 'Piégée',
+      description: 'Avant <script>fetch("/api/auth/logout")</script>après\n\n<img src="x.png" onerror="alert(1)" alt="schéma">',
+    })
+
+    const response = await getTask(10)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().task.description).toBe('Avant après\n\n<img src="x.png"  alt="schéma">')
+  })
+
+  it('lit une description nulle ou absente comme vide', async () => {
+    const body = {
+      _type: 'WorkPackage',
+      id: 10,
+      subject: 'Tâche',
+      lockVersion: 0,
+      _links: {
+        status: { href: '/api/v3/statuses/1', title: 'New' },
+        type: { href: '/api/v3/types/1', title: 'Task' },
+      },
+    }
+    op.interceptNext({
+      path: '/api/v3/work_packages/10',
+      status: 200,
+      body: {
+        ...body,
+        description: { format: 'markdown', raw: null },
+      },
+    })
+    expect((await getTask(10)).json().task.description).toBe('')
+
+    op.interceptNext({ path: '/api/v3/work_packages/10', status: 200, body })
+    expect((await getTask(10)).json().task.description).toBe('')
   })
 
   it.each([

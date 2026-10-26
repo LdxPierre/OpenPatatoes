@@ -10,6 +10,7 @@ import { Button } from '@/shared/components/ui/button'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
 import TaskAllowedValuePicker from './TaskAllowedValuePicker.vue'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
+import TaskDescription from './TaskDescription.vue'
 import TaskHoursField from './TaskHoursField.vue'
 import TaskParentPicker from './TaskParentPicker.vue'
 import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
@@ -60,10 +61,17 @@ watch(() => props.taskId, () => {
   failure.value = null
 })
 
+const description = useTemplateRef('description')
+
 const editMutation = useTaskEditMutation({
   onFailure: (error, variables) => {
-    if (variables.taskId === props.taskId)
-      failure.value = { error, variables }
+    if (variables.taskId !== props.taskId)
+      return
+    failure.value = { error, variables }
+    // Le texte refusé n'est plus affiché : l'éditeur le rend, pour le corriger sans le réécrire.
+    const { description: text } = variables.edit
+    if (text !== undefined)
+      void description.value?.edit(text)
   },
 })
 
@@ -76,6 +84,9 @@ const rejection = computed(() => failure.value && taskRejection(failure.value.er
 /** Champs dont la modification a échoué : ils sont revenus à l'état réel. */
 const rejectedFields = computed(() => new Set<string>(failedFields.value))
 
+/** L'alerte d'un échec va sous la description si elle est en cause, sous les heures sinon. */
+const failureNearDescription = computed(() => rejectedFields.value.has('description'))
+
 const fieldNames: Record<keyof TaskEdit, string> = {
   estimatedHours: 'le temps estimé',
   remainingHours: 'le temps restant',
@@ -84,6 +95,7 @@ const fieldNames: Record<keyof TaskEdit, string> = {
   type: 'le type',
   priority: 'la priorité',
   parent: 'le parent',
+  description: 'la description',
 }
 
 const editErrorMessages = computed<OpErrorMessages>(() => {
@@ -307,7 +319,7 @@ const closedSubtasksText = computed(() => {
               </dd>
             </div>
           </dl>
-          <div v-if="failure" class="edit-error">
+          <div v-if="failure && !failureNearDescription" class="edit-error">
             <OpErrorAlert
               :error="failure.error"
               :messages="editErrorMessages"
@@ -347,6 +359,24 @@ const closedSubtasksText = computed(() => {
           </dl>
         </template>
       </section>
+
+      <div v-if="detail.data.value" class="section">
+        <div v-if="failure && failureNearDescription" class="edit-error">
+          <OpErrorAlert
+            :error="failure.error"
+            :messages="editErrorMessages"
+            @retry="mutate(failure.variables)"
+          />
+        </div>
+        <TaskDescription
+          ref="description"
+          :key="taskId"
+          :description="detail.data.value.description"
+          :pending="pendingFields.has('description')"
+          :rejected="rejectedFields.has('description')"
+          @save="text => save({ description: text })"
+        />
+      </div>
 
       <section v-if="subtasks.length" class="section" aria-labelledby="subtasks-title">
         <h3 id="subtasks-title">
