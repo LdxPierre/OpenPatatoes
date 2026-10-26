@@ -147,6 +147,8 @@ export interface FakeOp {
   addUser: (user: { name: string, token: string }) => FakeUser
   addProject: (project: FakeProject) => FakeProject
   addWorkPackage: (workPackage: NewFakeWorkPackage) => FakeWorkPackage
+  /** Tâche de l'état du faux OP, à lire après une requête. */
+  workPackage: (id: number) => FakeWorkPackage
   /** Simule une modification concurrente dans OP (incrémente `lockVersion`). */
   touchWorkPackage: (id: number) => void
   /**
@@ -501,6 +503,13 @@ export async function startFakeOp(): Promise<FakeOp> {
       if (priorityLink && !priority)
         return constraintViolation(reply, 'priority', 'Priority is not set to one of the allowed values.')
 
+      const parentHref = body._links?.parent?.href
+      if (parentHref) {
+        const parentId = idFromHref(parentHref)
+        if (!state.workPackages.some(candidate => candidate.id === parentId))
+          return constraintViolation(reply, 'parent', 'Parent does not exist.')
+      }
+
       const assigneeHref = body._links?.assignee?.href
       if (assigneeHref) {
         const project = state.projects.find(candidate => candidate.id === workPackage.projectId)
@@ -653,6 +662,13 @@ export async function startFakeOp(): Promise<FakeOp> {
     },
   )
 
+  const workPackage = (id: number) => {
+    const found = state.workPackages.find(candidate => candidate.id === id)
+    if (!found)
+      throw new Error(`Tâche factice ${id} inconnue`)
+    return found
+  }
+
   await app.listen({ port: 0, host: '127.0.0.1' })
   const address = app.server.address()
   if (address === null || typeof address === 'string')
@@ -696,11 +712,9 @@ export async function startFakeOp(): Promise<FakeOp> {
       state.workPackages.push(created)
       return created
     },
+    workPackage,
     touchWorkPackage: (id) => {
-      const workPackage = state.workPackages.find(candidate => candidate.id === id)
-      if (!workPackage)
-        throw new Error(`Tâche factice ${id} inconnue`)
-      workPackage.lockVersion += 1
+      workPackage(id).lockVersion += 1
     },
     addActivity,
     interceptNext: (interception) => {

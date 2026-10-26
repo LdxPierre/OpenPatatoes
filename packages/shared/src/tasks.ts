@@ -113,7 +113,7 @@ const opIdSchema = z.number().int().positive()
 /**
  * Corps de `PATCH /api/tasks/:id`. Un champ absent reste inchangé, `null` le vide ;
  * au moins un champ doit être modifié. L'état, le type et la priorité ne se vident pas :
- * OP les exige. `lockVersion` est celui de la tâche lue : OP refuse l'écriture si la tâche
+ * OP les exige. `parentId` à `null` fait de la tâche une racine. `lockVersion` est celui de la tâche lue : OP refuse l'écriture si la tâche
  * a changé depuis.
  */
 export const taskChangesSchema = z
@@ -125,6 +125,7 @@ export const taskChangesSchema = z
     statusId: opIdSchema.optional(),
     typeId: opIdSchema.optional(),
     priorityId: opIdSchema.optional(),
+    parentId: opIdSchema.nullable().optional(),
   })
   .refine(
     ({ lockVersion: _, ...changes }) => Object.values(changes).some(value => value !== undefined),
@@ -134,13 +135,14 @@ export const taskChangesSchema = z
 export type TaskChanges = z.infer<typeof taskChangesSchema>
 
 /**
- * Réponse 422 de `PATCH /api/tasks/:id` quand OP refuse la modification. `message` reprend
- * celui d'OP. `task` est l'état réel de la tâche, pour annuler l'affichage optimiste ;
- * il manque si la tâche n'a pas pu être relue. Le code `op_token_invalid` partage ce statut :
- * c'est `error` qui distingue les deux.
+ * Réponse 422 de `PATCH /api/tasks/:id` quand la modification est refusée : par OP
+ * (`op_rejected`, `message` reprend celui d'OP) ou par l'app, avant OP, pour un parent
+ * qui créerait un cycle (`task_parent_cycle`). `task` est l'état réel de la tâche, pour
+ * annuler l'affichage optimiste ; il manque si la tâche n'a pas pu être relue. Le code
+ * `op_token_invalid` partage ce statut : c'est `error` qui distingue les cas.
  */
 export const taskRejectedResponseSchema = z.object({
-  error: z.literal('op_rejected'),
+  error: z.enum(['op_rejected', 'task_parent_cycle']),
   message: z.string(),
   task: taskDetailSchema.optional(),
 })

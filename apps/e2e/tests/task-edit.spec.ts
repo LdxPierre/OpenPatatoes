@@ -225,3 +225,53 @@ test.describe('modification d\'une tâche', () => {
     })
   })
 })
+
+test.describe('changement de parent', () => {
+  test.use({
+    scenario: {
+      ...scenario,
+      op: {
+        ...scenario.op,
+        projects: [
+          ...scenario.op!.projects!,
+          {
+            id: 2,
+            identifier: 'verger',
+            name: 'Verger',
+            memberIds: [1],
+          },
+        ],
+        workPackages: [
+          ...scenario.op!.workPackages!,
+          {
+            id: 11,
+            projectId: 1,
+            subject: 'Commander la paille',
+            parentId: 10,
+          },
+          { id: 20, projectId: 1, subject: 'Tailler la haie' },
+          { id: 30, projectId: 2, subject: 'Greffer les pommiers' },
+        ],
+      },
+    },
+  })
+
+  test('ne propose que les tâches du même projet, hors la tâche et ses sous-tâches, et déplace la tâche dans l\'arbre', async ({ page }) => {
+    const panel = await openTask(page)
+    const row = page.getByRole('treeitem', { name: /Pailler les allées/ })
+    await expect(row).toHaveAttribute('aria-level', '1')
+
+    await panel.getByRole('button', { name: /^Parent : Aucun parent/ }).click()
+    await expect(page.getByRole('option')).toHaveText(['Aucun parent', '#20 Tailler la haie'])
+    const saved = page.waitForResponse(response => response.request().method() === 'PATCH')
+    await page.getByRole('option', { name: /Tailler la haie/ }).click()
+
+    await expect(panel.getByRole('button', { name: /^Parent : Tailler la haie/ })).toBeVisible()
+    await expect(panel.getByRole('link', { name: /Tailler la haie/ })).toBeVisible()
+    await expect(row).toHaveAttribute('aria-level', '2')
+    await saved
+    await page.reload()
+    await expect(panel.getByRole('button', { name: /^Parent : Tailler la haie/ })).toBeVisible()
+    await expect(row).toHaveAttribute('aria-level', '2')
+  })
+})

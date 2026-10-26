@@ -87,7 +87,15 @@ async function revealSelected() {
   virtualizer.value.scrollToIndex(activeIndex.value, { align: 'auto' })
 }
 
-watch(() => props.selectedId, revealSelected, { immediate: true })
+/** Parent de la tâche ouverte : quand elle change de parent, elle est de nouveau dévoilée. */
+const selectedParentId = computed(() => props.selectedId == null
+  ? null
+  : taskPath(props.tasks, props.selectedId)?.at(-2)?.id ?? null)
+
+watch([
+  () => props.selectedId,
+  selectedParentId,
+], revealSelected, { immediate: true })
 
 const virtualRows = computed(() => virtualizer.value.getVirtualItems()
   .flatMap((item) => {

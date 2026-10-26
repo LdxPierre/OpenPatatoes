@@ -1,4 +1,4 @@
-import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRef, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
 import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
 import { forEachTask, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
@@ -89,6 +89,7 @@ export interface TaskEdit {
   status?: TaskStatus
   type?: OpNamedRef
   priority?: OpNamedRef
+  parent?: TaskRef | null
 }
 
 export interface TaskEditVariables {
@@ -116,7 +117,7 @@ function pendingEdits(queryClient: QueryClient, taskId: number): TaskEditVariabl
 }
 
 /**
- * Enregistre la tâche dans le cache du détail, et son état et son assigné dans l'arbre du projet.
+ * Enregistre la tâche dans le cache du détail, et son état, son assigné et sa place dans l'arbre du projet.
  * Les modifications encore en route vers OP restent affichées par-dessus, sauf `settled`,
  * celle qui vient d'obtenir sa réponse.
  */
@@ -128,7 +129,7 @@ function showTask(queryClient: QueryClient, { projectId, taskId }: TaskEditVaria
   queryClient.setQueryData<TaskTreeResponse>(
     taskTreeQueryKey(projectId),
     tree => tree && {
-      tasks: withTreeFields(tree.tasks, taskId, task),
+      tasks: withTreeFields(withParent(tree.tasks, taskId, task.parent?.id ?? null), taskId, task),
     },
   )
 }
@@ -144,25 +145,59 @@ export function withTreeFields(roots: TaskNode[], taskId: number, { status, assi
     return roots
   if (task.status.id === status.id && (task.assignee?.id ?? null) === (assignee?.id ?? null))
     return roots
-  let node: TaskNode = { ...task, status, assignee }
-  for (const parent of path.slice(0, -1).reverse()) {
-    const child = node
-    node = {
-      ...parent,
-      children: parent.children.map(sibling => sibling.id === child.id
-        ? child
-        : sibling),
-    }
-  }
-  const root = node
-  return roots.map(task => task.id === root.id
-    ? root
-    : task)
+  const updated = { ...task, status, assignee }
+  return withChildren(roots, path.slice(0, -1), children => children.map(child => child === task
+    ? updated
+    : child))
 }
 
-/** Le refus d'OP, avec son message et l'état réel de la tâche ; `null` pour toute autre erreur. */
+/**
+ * L'arbre avec la tâche déplacée sous `parentId`, parmi ses frères rangés par identifiant
+ * comme dans la liste d'OP. Un parent absent de l'arbre (autre projet, invisible avec le jeton)
+ * en fait une racine, comme côté serveur. Un parent pris dans la tâche elle-même créerait
+ * un cycle : l'arbre reste tel quel. Seules les tâches des deux chemins sont copiées.
+ */
+export function withParent(roots: TaskNode[], taskId: number, parentId: number | null): TaskNode[] {
+  const path = taskPath(roots, taskId)
+  const task = path?.at(-1)
+  if (!path || !task)
+    return roots
+  const parentPath = parentId === null
+    ? null
+    : taskPath(roots, parentId)
+  if ((parentPath?.at(-1)?.id ?? null) === (path.at(-2)?.id ?? null) || parentPath?.includes(task))
+    return roots
+  const detached = withChildren(roots, path.slice(0, -1), children => children.filter(child => child !== task))
+  const newParentPath = parentPath
+    ? taskPath(detached, parentPath.at(-1)!.id)!
+    : []
+  return withChildren(detached, newParentPath, (children) => {
+    const index = children.findIndex(child => child.id > task.id)
+    return children.toSpliced(index === -1
+      ? children.length
+      : index, 0, task)
+  })
+}
+
+/**
+ * L'arbre avec les enfants de la dernière tâche de `path` remplacés ; `path` vide : les racines.
+ * `path` part d'une racine. Seules les tâches du chemin sont copiées.
+ */
+function withChildren(roots: TaskNode[], path: TaskNode[], update: (children: TaskNode[]) => TaskNode[]): TaskNode[] {
+  let children = update(path.at(-1)?.children ?? roots)
+  for (let depth = path.length - 1; depth >= 0; depth--) {
+    const node = { ...path[depth]!, children }
+    const siblings = path[depth - 1]?.children ?? roots
+    children = siblings.map(sibling => sibling === path[depth]
+      ? node
+      : sibling)
+  }
+  return children
+}
+
+/** Le refus d'OP ou de l'app, avec son message et l'état réel de la tâche ; `null` pour toute autre erreur. */
 export function taskRejection(error: Error): TaskRejectedResponse | null {
-  if (!(error instanceof ApiError) || error.code !== 'op_rejected')
+  if (!(error instanceof ApiError) || !taskRejectedResponseSchema.shape.error.safeParse(error.code).success)
     return null
   const parsed = taskRejectedResponseSchema.safeParse(error.body)
   return parsed.success
@@ -182,7 +217,7 @@ export function usePendingTaskFields(taskId: MaybeRefOrGetter<number>) {
 }
 
 /**
- * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type ou la priorité d'une tâche. La modification
+ * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité ou le parent d'une tâche. La modification
  * s'affiche tout de suite ; si OP la refuse, l'affichage revient à l'état réel.
  * Les modifications partent l'une après l'autre, toutes tâches confondues : chacune envoie
  * la version de la tâche que la précédente a obtenue d'OP.
@@ -204,7 +239,7 @@ export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, 
       const task = cachedTask(taskId)
       if (!task)
         throw new Error(`Tâche ${taskId} absente du cache`)
-      const { assignee, status, type, priority, ...hours } = edit
+      const { assignee, status, type, priority, parent, ...hours } = edit
       return apiFetch(`/tasks/${taskId}`, {
         method: 'PATCH',
         body: {
@@ -214,6 +249,7 @@ export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, 
           ...(status && { statusId: status.id }),
           ...(type && { typeId: type.id }),
           ...(priority && { priorityId: priority.id }),
+          ...(parent !== undefined && { parentId: parent?.id ?? null }),
         },
         schema: taskDetailResponseSchema,
       })

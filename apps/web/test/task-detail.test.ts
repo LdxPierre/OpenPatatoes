@@ -196,6 +196,7 @@ describe('détail d\'une tâche', () => {
     const wrapper = await openApp('/projets/1/taches/30')
 
     expect(fields(wrapper)).toEqual([
+      ['Parent', 'Aucun parent'],
       ['Responsable', 'Alex Martin'],
       ['Dates', '6 oct. → 31 oct.'],
       ['Type', 'Fonctionnalité'],
@@ -208,8 +209,9 @@ describe('détail d\'une tâche', () => {
     delete details[30]
 
     const sparse = await openApp('/projets/1/taches/20')
-    // Le type et la priorité se modifient : ils restent affichés, même vides.
+    // Le parent, le type et la priorité se modifient : ils restent affichés, même vides.
     expect(fields(sparse)).toEqual([
+      ['Parent', 'Aucun parent'],
       ['Type', 'Tâche'],
       ['Priorité', 'Non renseignée'],
     ])
@@ -225,7 +227,7 @@ describe('détail d\'une tâche', () => {
     })
     const wrapper = await openApp('/projets/1/taches/33')
 
-    expect(fields(wrapper)[0]).toEqual([
+    expect(fields(wrapper)[1]).toEqual([
       'Échéance',
       expect.stringMatching(/^15 nov\./),
     ])

@@ -1,6 +1,9 @@
 import type { TaskNode } from '@openpatatoes/shared'
+import type { ResultAsync } from 'neverthrow'
+import type { OpError } from '../op/errors.js'
 import type { OpStatus, OpWorkPackage } from '../op/schemas.js'
 import { forEachTask } from '@openpatatoes/shared'
+import { okAsync } from 'neverthrow'
 
 /**
  * Construit l'arbre des tâches depuis la liste plate d'OP. Le premier niveau contient
@@ -60,4 +63,28 @@ export function buildTaskTree(workPackages: OpWorkPackage[], statuses: OpStatus[
   }
 
   return roots
+}
+
+/**
+ * Donner `parentId` pour parent à la tâche `taskId` créerait-il un cycle ? Oui si le parent
+ * est la tâche elle-même ou l'une de ses descendantes : on remonte les ancêtres du parent.
+ * `parentOf` lit le parent d'une tâche ; `null` arrête la remontée (racine, ou parent
+ * invisible avec le jeton : OP vérifie alors lui-même). Une boucle déjà présente dans OP
+ * arrête aussi la remontée, sans cycle imputé à la modification.
+ */
+export function wouldCreateCycle(
+  taskId: number,
+  parentId: number,
+  parentOf: (id: number) => ResultAsync<number | null, OpError>,
+): ResultAsync<boolean, OpError> {
+  const visited = new Set<number>()
+  const climb = (id: number | null): ResultAsync<boolean, OpError> => {
+    if (id === taskId)
+      return okAsync(true)
+    if (id === null || visited.has(id))
+      return okAsync(false)
+    visited.add(id)
+    return parentOf(id).andThen(climb)
+  }
+  return climb(parentId)
 }

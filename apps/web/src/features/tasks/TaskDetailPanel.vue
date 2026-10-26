@@ -11,6 +11,7 @@ import { dueHint, formatDay, formatFullDay, formatHours } from './format'
 import TaskAllowedValuePicker from './TaskAllowedValuePicker.vue'
 import TaskAssigneePicker from './TaskAssigneePicker.vue'
 import TaskHoursField from './TaskHoursField.vue'
+import TaskParentPicker from './TaskParentPicker.vue'
 import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
 
 /**
@@ -82,12 +83,13 @@ const fieldNames: Record<keyof TaskEdit, string> = {
   status: 'l\'état',
   type: 'le type',
   priority: 'la priorité',
+  parent: 'le parent',
 }
 
 const editErrorMessages = computed<OpErrorMessages>(() => {
   const what = failedFields.value.map(field => fieldNames[field]).join(' et ')
   return {
-    // Le message d'un refus vient d'OP, qui nomme le champ en cause.
+    // Le message d'un refus vient d'OP, ou du serveur pour un parent qui créerait un cycle : il nomme le champ en cause.
     fallback: rejection.value?.message ?? `L'app n'a pas pu modifier ${what}. Réessayez dans un instant.`,
     forbidden: `OpenProject ne vous permet pas de modifier ${what} de cette tâche. Demandez ce droit à un administrateur du projet dans OpenProject.`,
     notFound: errorMessages.notFound,
@@ -119,7 +121,7 @@ interface FieldValue {
   /** Infobulle : la valeur complète quand l'affichage est abrégé. */
   title?: string
   hint?: ReturnType<typeof dueHint>
-  edit?: 'type' | 'priority'
+  edit?: 'type' | 'priority' | 'parent'
 }
 
 interface Field extends FieldValue {
@@ -127,8 +129,8 @@ interface Field extends FieldValue {
   column: 'wide' | 'left' | 'right'
 }
 
-/** Propriété modifiable : la valeur est une liste des valeurs que permet OP. */
-function editable(label: string, edit: 'type' | 'priority'): FieldValue {
+/** Propriété modifiable : la valeur est une liste de choix. */
+function editable(label: string, edit: NonNullable<FieldValue['edit']>): FieldValue {
   return { label, value: '', edit }
 }
 
@@ -158,7 +160,7 @@ function pair(left: FieldValue | null, right: FieldValue | null): Field[] {
 
 /**
  * Propriétés renseignées, dans l'ordre d'affichage. Une propriété vide n'est pas affichée,
- * sauf si elle se modifie : le type et la priorité.
+ * sauf si elle se modifie : le parent, le type et la priorité.
  */
 const fields = computed<Field[]>(() => {
   const task = detail.data.value
@@ -169,6 +171,7 @@ const fields = computed<Field[]>(() => {
     ? dueHint(task.dueDate)
     : undefined
   return [
+    ...wide(editable('Parent', 'parent')),
     ...wide(named('Responsable', task.responsible)),
     ...wide(datesField(task.startDate, task.dueDate, hint)),
     ...pair(editable('Type', 'type'), editable('Priorité', 'priority')),
@@ -317,7 +320,17 @@ const closedSubtasksText = computed(() => {
           <dl class="fields">
             <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
               <dt>{{ field.label }}</dt>
-              <dd v-if="field.edit && detail.data.value" class="editable">
+              <dd v-if="field.edit === 'parent' && detail.data.value" class="editable">
+                <TaskParentPicker
+                  :task-id="taskId"
+                  :parent="detail.data.value.parent"
+                  :tree="tree"
+                  :pending="pendingFields.has('parent')"
+                  :rejected="rejectedFields.has('parent')"
+                  @select="parent => save({ parent })"
+                />
+              </dd>
+              <dd v-else-if="field.edit && field.edit !== 'parent' && detail.data.value" class="editable">
                 <TaskAllowedValuePicker
                   :task-id="taskId"
                   :field="field.edit"
