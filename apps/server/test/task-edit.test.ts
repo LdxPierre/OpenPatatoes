@@ -239,8 +239,8 @@ describe('édition d\'une tâche', () => {
 
     it.each([
       ['elle-même', 10, 'Une tâche ne peut pas être son propre parent.'],
-      ['sa sous-tâche', 11, 'Ce parent est une sous-tâche de la tâche : la tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
-      ['une sous-tâche de sa sous-tâche', 12, 'Ce parent est une sous-tâche de la tâche : la tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
+      ['sa sous-tâche', 11, 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
+      ['une sous-tâche de sa sous-tâche', 12, 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
     ])('refuse pour parent %s, sans rien écrire dans OP', async (_case, parentId, message) => {
       const response = await patchTask(10, { lockVersion: 0, parentId })
 

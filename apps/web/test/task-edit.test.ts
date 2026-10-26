@@ -497,7 +497,7 @@ describe('modification d\'une tâche', () => {
 
   it('revient au parent réel et affiche le refus du serveur pour un parent qui créerait un cycle', async () => {
     const wrapper = await openTask()
-    const message = 'Ce parent est une sous-tâche de la tâche : la tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'
+    const message = 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'
     fakeApi.on('PATCH', '/tasks/11', () => {
       throw new ApiError(422, 'task_parent_cycle', { error: 'task_parent_cycle', message, task: stored })
     })

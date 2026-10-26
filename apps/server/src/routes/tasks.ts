@@ -95,7 +95,7 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
             error: 'task_parent_cycle',
             message: parentId === id
               ? 'Une tâche ne peut pas être son propre parent.'
-              : 'Ce parent est une sous-tâche de la tâche : la tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.',
+              : 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.',
           })
         }
       }
