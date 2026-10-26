@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { OpNamedRef } from '@openpatatoes/shared'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import TaskChoicePicker from './TaskChoicePicker.vue'
 import { useTaskAssigneesQuery } from './tasks'
 
@@ -22,9 +22,12 @@ const assignees = useTaskAssigneesQuery(() => props.taskId, open)
 const texts = {
   search: 'Rechercher un membre',
   loading: 'Chargement des membres du projet…',
-  failed: 'L\'app n\'a pas pu lire les membres du projet dans OpenProject.',
   noMatch: 'Aucun membre ne porte ce nom.',
 }
+
+const failure = computed(() => assignees.isError.value
+  ? { message: 'L\'app n\'a pas pu lire les membres du projet dans OpenProject.', retry: true }
+  : null)
 </script>
 
 <template>
@@ -36,7 +39,7 @@ const texts = {
     :value="assignee"
     :choices="assignees.data.value"
     :loading="assignees.isPending.value"
-    :failed="assignees.isError.value"
+    :failure="failure"
     :texts="texts"
     :pending="pending"
     :rejected="rejected"

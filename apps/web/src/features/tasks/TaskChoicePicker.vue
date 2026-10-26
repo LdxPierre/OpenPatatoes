@@ -14,9 +14,10 @@ const props = defineProps<{
   /** Choix permis par OP ; `undefined` tant qu'ils ne sont pas lus. */
   choices: T[] | undefined
   loading: boolean
-  failed: boolean
-  /** Textes de la liste : ce qu'on cherche, la lecture des choix et son échec, une recherche sans résultat. */
-  texts: { search: string, loading: string, failed: string, noMatch: string }
+  /** Échec de la lecture des choix : son message, et si réessayer peut aboutir. */
+  failure: { message: string, retry: boolean } | null
+  /** Textes de la liste : ce qu'on cherche, la lecture des choix, une recherche sans résultat. */
+  texts: { search: string, loading: string, noMatch: string }
   /** Ce qu'affiche le champ vide. */
   emptyLabel: string
   /** Le champ peut être vidé : la liste propose `emptyLabel` en premier choix. */
@@ -92,9 +93,9 @@ function choose(value: unknown) {
         <p v-if="loading" class="note" role="status">
           {{ texts.loading }}
         </p>
-        <p v-else-if="failed" class="note" role="alert">
-          {{ texts.failed }}
-          <button type="button" class="retry" @click="emit('retry')">
+        <p v-else-if="failure" class="note" role="alert">
+          {{ failure.message }}
+          <button v-if="failure.retry" type="button" class="retry" @click="emit('retry')">
             Réessayer
           </button>
         </p>

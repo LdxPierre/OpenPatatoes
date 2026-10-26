@@ -2,6 +2,7 @@
 import type { OpNamedRef, TaskStatus } from '@openpatatoes/shared'
 import type { TaskEdit } from './tasks'
 import { computed, ref } from 'vue'
+import { ApiError } from '@/shared/api/api-fetch'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import TaskChoicePicker from './TaskChoicePicker.vue'
 import { useTaskAllowedValuesQuery } from './tasks'
@@ -27,34 +28,34 @@ const emit = defineEmits<{ save: [edit: TaskEdit] }>()
 const settings = {
   status: {
     label: 'État',
+    failed: 'L\'app n\'a pas pu lire les états possibles dans OpenProject.',
     empty: 'Non renseigné',
     list: 'statuses',
     texts: {
       search: 'Rechercher un état',
       loading: 'Chargement des états possibles…',
-      failed: 'L\'app n\'a pas pu lire les états possibles dans OpenProject.',
       noMatch: 'Aucun état possible ne porte ce nom.',
     },
   },
   type: {
     label: 'Type',
+    failed: 'L\'app n\'a pas pu lire les types du projet dans OpenProject.',
     empty: 'Non renseigné',
     list: 'types',
     texts: {
       search: 'Rechercher un type',
       loading: 'Chargement des types du projet…',
-      failed: 'L\'app n\'a pas pu lire les types du projet dans OpenProject.',
       noMatch: 'Aucun type ne porte ce nom.',
     },
   },
   priority: {
     label: 'Priorité',
+    failed: 'L\'app n\'a pas pu lire les priorités dans OpenProject.',
     empty: 'Non renseignée',
     list: 'priorities',
     texts: {
       search: 'Rechercher une priorité',
       loading: 'Chargement des priorités…',
-      failed: 'L\'app n\'a pas pu lire les priorités dans OpenProject.',
       noMatch: 'Aucune priorité ne porte ce nom.',
     },
   },
@@ -65,6 +66,16 @@ const setting = computed(() => settings[props.field])
 const open = ref(false)
 // Relue à chaque ouverture : un autre a pu changer l'état ou le type dans OP.
 const allowedValues = useTaskAllowedValuesQuery(() => props.taskId, open)
+
+/** Sans droit de modifier la tâche, OP refuse son formulaire : réessayer n'y changera rien. */
+const failure = computed(() => {
+  const error = allowedValues.error.value
+  if (!error)
+    return null
+  return error instanceof ApiError && error.code === 'op_forbidden'
+    ? { message: 'OpenProject ne vous permet pas de modifier cette tâche.', retry: false }
+    : { message: setting.value.failed, retry: true }
+})
 
 function select(choice: OpNamedRef | null) {
   // Ni l'état, ni le type, ni la priorité ne se vident.
@@ -81,7 +92,7 @@ function select(choice: OpNamedRef | null) {
     :value="value"
     :choices="allowedValues.data.value?.[setting.list]"
     :loading="allowedValues.isPending.value"
-    :failed="allowedValues.isError.value"
+    :failure="failure"
     :texts="setting.texts"
     :pending="pending"
     :rejected="rejected"

@@ -201,4 +201,27 @@ test.describe('modification d\'une tâche', () => {
       await expect(row).toContainText('New')
     })
   })
+
+  test.describe('sans droit de modifier la tâche', () => {
+    test.use({
+      scenario: {
+        ...scenario,
+        op: {
+          ...scenario.op,
+          interceptions: [
+            { method: 'POST', path: '/api/v3/work_packages/10/form', status: 403 },
+          ],
+        },
+      },
+    })
+
+    test('le dit, sans proposer de réessayer', async ({ page }) => {
+      const panel = await openTask(page)
+
+      await panel.getByRole('button', { name: /^État : New/ }).click()
+
+      await expect(page.getByRole('alert')).toHaveText('OpenProject ne vous permet pas de modifier cette tâche.')
+      await expect(page.getByRole('button', { name: 'Réessayer' })).toHaveCount(0)
+    })
+  })
 })
