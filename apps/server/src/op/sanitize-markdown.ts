@@ -4,14 +4,15 @@
  */
 const SCRIPT_TAG = /<(\/?)script\b(?:[^>"'<]|"[^"]*"|'[^']*')*>?/gi
 
-/** Balise HTML ouvrante, attributs compris. */
-const TAG = /<[a-z](?:[^>"'<]|"[^"]*"|'[^']*')*>/gi
-
 /**
- * Attribut d'événement (`onclick`, `onerror`…) et sa valeur. Le navigateur sépare les attributs
- * par une espace, une barre oblique ou le guillemet qui ferme la valeur précédente.
+ * Attribut d'événement (`onclick`, `onerror`…) et sa valeur, cherché partout dans le texte et non
+ * dans les seules balises : le markdown ne dit pas sûrement où le navigateur fermera une balise
+ * (markdown-it échappe les guillemets du texte, pas ceux du HTML brut). Dans une balise, un nom
+ * d'attribut suit une espace, une barre oblique ou le guillemet qui ferme la valeur précédente.
+ * Une valeur entre guillemets ne passe pas la ligne : si elle continue, seul le nom part,
+ * et le `=` qui reste ne fait plus qu'un attribut inerte.
  */
-const EVENT_ATTRIBUTE = /(?<=[\s/"'])on[\w-]*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi
+const EVENT_ATTRIBUTE = /(?<=[\s/"'])on[a-z]+\s*=\s*(?:"[^"\n]*"|'[^'\n]*'|[^\s>"']*)/gi
 
 /**
  * Passes au-delà desquelles la description est jugée fabriquée pour déjouer l'assainissement.
@@ -50,17 +51,19 @@ function removeScripts(markdown: string) {
   return kept + markdown.slice(from)
 }
 
+/** Une passe d'assainissement : les scripts, puis les attributs d'événement. */
 function removeOnce(markdown: string) {
-  return removeScripts(markdown).replace(TAG, tag => tag.replace(EVENT_ATTRIBUTE, ''))
+  return removeScripts(markdown).replace(EVENT_ATTRIBUTE, '')
 }
 
 /**
  * Retire d'une description markdown les éléments `<script>` et les attributs d'événement
  * de son HTML. Le reste du markdown et du HTML est gardé tel quel : l'interface assainit
  * aussi l'aperçu, ceci n'est qu'une première barrière.
- * Le code n'est pas épargné : un exemple de `<script>` dans un bloc de code disparaît aussi.
- * Distinguer le code du HTML demanderait d'analyser le markdown comme le fait l'aperçu,
- * et la moindre différence laisserait passer du HTML.
+ * Le code et le texte ne sont pas épargnés : un exemple de `<script>` dans un bloc de code,
+ * ou un `onclick="…"` cité dans une phrase, disparaît aussi. Les distinguer du HTML demanderait
+ * d'analyser le markdown comme le fait l'aperçu, et la moindre différence laisserait passer du HTML.
+ * L'éditeur part de ce texte assaini : l'enregistrer écrit ces retraits dans OP.
  */
 export function sanitizeMarkdown(markdown: string) {
   // Une suppression peut en recoller une autre (`<scr<script></script>ipt>`) : on recommence

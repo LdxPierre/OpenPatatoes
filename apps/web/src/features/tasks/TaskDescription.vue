@@ -33,7 +33,6 @@ const draft = ref('')
 const editButton = useTemplateRef('editButton')
 const editorBox = useTemplateRef('editorBox')
 
-/** Ouvre l'éditeur, sur la description ou sur un texte à reprendre (une modification refusée). */
 async function edit(text = props.description) {
   draft.value = text
   editing.value = true
@@ -53,7 +52,16 @@ function save() {
   return stopEditing()
 }
 
-defineExpose({ edit })
+/**
+ * Rend à l'éditeur un texte refusé par OP, pour le corriger sans le réécrire. Si l'éditeur
+ * est déjà rouvert, la saisie en cours est plus récente : elle reste.
+ */
+function restore(text: string) {
+  if (!editing.value)
+    void edit(text)
+}
+
+defineExpose({ restore })
 
 /** Une longue description est coupée à six lignes : le lien affiche la suite sur place. */
 const expanded = ref(false)

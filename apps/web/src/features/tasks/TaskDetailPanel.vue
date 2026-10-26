@@ -71,7 +71,7 @@ const editMutation = useTaskEditMutation({
     // Le texte refusé n'est plus affiché : l'éditeur le rend, pour le corriger sans le réécrire.
     const { description: text } = variables.edit
     if (text !== undefined)
-      void description.value?.edit(text)
+      description.value?.restore(text)
   },
 })
 

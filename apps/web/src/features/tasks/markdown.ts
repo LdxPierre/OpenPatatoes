@@ -30,11 +30,19 @@ export const MARKDOWN_TOOLBARS = [
 
 /**
  * HTML de l'aperçu, assaini : ni script, ni attribut d'événement, ni lien `javascript:`.
- * Les feuilles de style et les formulaires partent aussi : ils pourraient habiller ou imiter l'app.
+ * Les styles, les formulaires et leurs champs partent aussi : ils pourraient couvrir ou imiter l'app.
+ * Les cases à cocher restent : md-editor-v3 en fait les listes de tâches.
  */
 export function sanitizePreview(html: string) {
   return DOMPurify.sanitize(html, {
-    FORBID_TAGS: ['style', 'form'],
+    FORBID_TAGS: [
+      'style',
+      'form',
+      'button',
+      'textarea',
+      'select',
+    ],
+    FORBID_ATTR: ['style'],
   })
 }
 

@@ -33,8 +33,24 @@ describe('assainissement d\'une description markdown', () => {
     expect(sanitizeMarkdown(markdown)).toBe(sanitized)
   })
 
-  it('ne touche pas au texte qui ressemble à un attribut hors d\'une balise', () => {
-    const markdown = 'Le paramètre onclick="x" se règle dans le fichier.'
+  it.each([
+    ['après une apostrophe sans paire', '<p><img src=x \'x onerror=alert(1)>', '<p><img src=x \'x >'],
+    ['après un guillemet dans un nom', '<p><img src=x a"b onerror=alert(1)>', '<p><img src=x a"b >'],
+    ['après une valeur sans guillemets qui en contient un', '<img src=x\' onerror=alert(1)>', '<img src=x\' >'],
+    ['après un chevron dans une valeur', '<div>\n<img src=x title=< onerror=alert(1)>\n</div>', '<div>\n<img src=x title=< >\n</div>'],
+    // Le navigateur ferme la valeur de `x` au guillemet brut de `y=` : le guillemet du texte, échappé par markdown-it, ne compte pas.
+    ['après une valeur que le texte du markdown décale', '<div x="\n\na"\n\n<b y=" onerror=alert(1) >', '<div x="\n\na"\n\n<b y="  >'],
+    ['dont la valeur entre guillemets continue à la ligne suivante', '<a onclick="alert(1)\n">lien</a>', '<a "alert(1)\n">lien</a>'],
+  ])('retire un attribut d\'événement %s', (_case, markdown, sanitized) => {
+    expect(sanitizeMarkdown(markdown)).toBe(sanitized)
+  })
+
+  it('retire aussi un attribut d\'événement cité dans le texte : rien ne dit sûrement qu\'il est hors d\'une balise', () => {
+    expect(sanitizeMarkdown('Le paramètre onclick="x" se règle dans le fichier.')).toBe('Le paramètre  se règle dans le fichier.')
+  })
+
+  it('garde les mots qui commencent par « on » sans être suivis d\'un égal', () => {
+    const markdown = 'On online <a title="ongoing">lien</a>'
 
     expect(sanitizeMarkdown(markdown)).toBe(markdown)
   })

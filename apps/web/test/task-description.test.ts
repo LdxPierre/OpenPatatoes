@@ -169,6 +169,27 @@ describe('description d\'une tâche', () => {
     expect(wrapper.find('aside .hours + .edit-error').exists()).toBe(false)
   })
 
+  it('garde une saisie plus récente quand OP refuse une modification précédente', async () => {
+    const wrapper = await openTask()
+    let refuse: () => void = () => {}
+    fakeApi.on('PATCH', '/tasks/11', () => new Promise((_resolve, reject) => {
+      refuse = () => reject(new ApiError(422, 'op_rejected', {
+        error: 'op_rejected',
+        message: 'OpenProject a refusé la modification : La description est trop longue.',
+        task: stored,
+      }))
+    }))
+
+    await writeDescription(wrapper, 'Première version')
+    await button(wrapper, 'Enregistrer la description').trigger('click')
+    await flushPromises()
+    await writeDescription(wrapper, 'Seconde version, en cours')
+    refuse()
+    await flushPromises()
+
+    expect(wrapper.getComponent(MdEditor).props('modelValue')).toBe('Seconde version, en cours')
+  })
+
   it('n\'envoie rien quand la description n\'a pas changé', async () => {
     const wrapper = await openTask()
 
@@ -202,6 +223,8 @@ describe('assainissement de l\'aperçu', () => {
     ['un lien javascript:', '<a href="javascript:alert(1)">lien</a>', '<a>lien</a>'],
     ['une feuille de style', '<style>body { display: none }</style><p>a</p>', '<p>a</p>'],
     ['un formulaire', '<form action="https://example.org"><p>a</p></form>', '<p>a</p>'],
+    ['un bouton, dont le texte reste', '<p>a</p><button>Se connecter</button>', '<p>a</p>Se connecter'],
+    ['un style en ligne', '<div style="position: fixed; inset: 0">a</div>', '<div>a</div>'],
   ])('retire %s', (_case, html, sanitized) => {
     expect(sanitizePreview(html)).toBe(sanitized)
   })
