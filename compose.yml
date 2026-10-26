@@ -1,0 +1,40 @@
+# Application complète : docker compose up --build (variables dans .env, voir .env.example).
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: openpatatoes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?à définir dans .env}
+      POSTGRES_DB: openpatatoes
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, openpatatoes]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://openpatatoes:${POSTGRES_PASSWORD}@postgres:5432/openpatatoes
+      OP_BASE_URL: ${OP_BASE_URL:?à définir dans .env}
+      OP_TOKEN_ENCRYPTION_KEY: ${OP_TOKEN_ENCRYPTION_KEY:?à définir dans .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?à définir dans .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    build: { context: ., target: web }
+    restart: unless-stopped
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -1,5 +1,24 @@
 # OpenPatatoes
 
+## Lancer l'application avec Docker
+
+Prérequis : Docker avec Compose.
+
+```sh
+cp .env.example .env
+docker compose up --build
+```
+
+Dans `.env`, renseignez `OP_BASE_URL`, `OP_TOKEN_ENCRYPTION_KEY` (`openssl rand -base64 32`), `POSTGRES_PASSWORD` (`openssl rand -hex 24`) et `ADMIN_PASSWORD`. Ce fichier n'est jamais commité.
+
+L'application est sur http://localhost:8080 (`WEB_PORT` pour changer le port). Compose démarre trois services :
+
+- `web` : nginx sert le front construit et renvoie `/api` vers le service `api` ;
+- `api` : le serveur Fastify, qui applique les migrations à chaque démarrage ;
+- `postgres` : la base, dans le volume `pgdata`.
+
+Le cookie de session est réservé à HTTPS (`COOKIE_SECURE=true`), sauf sur `localhost`, que Chrome et Firefox traitent comme sûr. Pour essayer l'app en HTTP depuis une autre adresse, mettez `COOKIE_SECURE=false`. En production, placez un proxy HTTPS devant le service `web`.
+
 ## Développement
 
 Prérequis : Node 22 ou plus, pnpm 10, Docker.
