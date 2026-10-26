@@ -65,6 +65,7 @@ describe('détail d\'une tâche', () => {
       task: {
         id: 11,
         subject: 'Enfant',
+        lockVersion: 0,
         status: { id: FAKE_STATUSES.new.id, name: 'New', isClosed: false },
         type: { id: 1, name: 'Task' },
         priority: { id: 8, name: 'Normal' },
@@ -246,6 +247,7 @@ describe('détail d\'une tâche', () => {
         _type: 'WorkPackage',
         id: 11,
         subject: 'Enfant d\'un parent invisible',
+        lockVersion: 0,
         estimatedTime: null,
         remainingTime: null,
         _links: {

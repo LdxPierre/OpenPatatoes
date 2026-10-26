@@ -2,12 +2,14 @@ import type { z } from 'zod'
 
 /**
  * Échec d'un appel à l'API. `status` vaut 0 si le serveur n'a pas répondu.
- * `code` reprend le champ `error` renvoyé par le serveur quand il existe.
+ * `code` reprend le champ `error` renvoyé par le serveur quand il existe, et `body`
+ * le corps entier : certaines erreurs y ajoutent de quoi les afficher.
  */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
+    readonly body?: unknown,
   ) {
     super(`API ${status} : ${code}`)
     this.name = 'ApiError'
@@ -53,7 +55,7 @@ export async function apiFetch(path: string, { method = 'GET', body, schema, sig
   const payload: unknown = await response.json().catch(() => undefined)
 
   if (!response.ok)
-    throw new ApiError(response.status, errorCodeOf(payload))
+    throw new ApiError(response.status, errorCodeOf(payload), payload)
   if (!schema)
     return
 

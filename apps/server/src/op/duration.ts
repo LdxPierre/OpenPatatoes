@@ -1,5 +1,5 @@
 /**
- * Durées ISO 8601 d'OP (`PT2H30M`, `P1DT2H`...) vers des heures décimales.
+ * Durées ISO 8601 d'OP (`PT2H30M`, `P1DT2H`...) vers des heures décimales, et retour.
  *
  * OP 17 émet ses durées depuis un nombre d'heures (gem `ruby-duration`) : 26 h donnent
  * `P1DT2H`, un jour vaut donc 24 h, pas une journée de travail. Les semaines (7 × 24 h)
@@ -37,4 +37,14 @@ export function isoDurationToHours(duration: string): number | null {
   for (const [unit, toHours] of parts)
     hours += toHours(Number(groups[unit]!.replace(',', '.')))
   return hours
+}
+
+/**
+ * Heures décimales vers une durée en heures seules (`2.5` → `PT2.5H`), relue à l'identique
+ * par `isoDurationToHours`. `String` donne l'écriture la plus courte qui relit le même nombre ;
+ * elle passe en exposant hors de [1e-6, 1e21[, ce que `TASK_HOURS_MIN` et `TASK_HOURS_MAX` excluent.
+ * `-0` s'écrit `0`.
+ */
+export function hoursToIsoDuration(hours: number): string {
+  return `PT${String(hours)}H`
 }

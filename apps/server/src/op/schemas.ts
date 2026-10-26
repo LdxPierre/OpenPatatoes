@@ -17,6 +17,20 @@ export const opUserSchema = z
 
 export type OpUser = z.output<typeof opUserSchema>
 
+/**
+ * Assignable d'une tâche. OP propose aussi des groupes et des utilisateurs fictifs ;
+ * l'application n'assigne qu'à des utilisateurs, les autres donnent `null`.
+ */
+export const opAvailableAssigneeSchema = z
+  .object({
+    _type: z.string(),
+    id: z.number().int(),
+    name: z.string(),
+  })
+  .transform(({ _type, id, name }) => (_type === 'User'
+    ? { id, name }
+    : null))
+
 /** OP liste aussi les portefeuilles et les programmes parmi les projets : ils ont le même identifiant et le même nom. */
 export const opProjectSchema = z
   .object({
@@ -121,6 +135,7 @@ const opDateSchema = z.iso.date().nullish().transform(date => date ?? null)
  */
 export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
   .extend({
+    lockVersion: z.number().int(),
     estimatedTime: opDurationAsHoursSchema,
     remainingTime: opDurationAsHoursSchema,
     spentTime: opDurationAsHoursSchema,
@@ -137,9 +152,10 @@ export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
       category: opOptionalLinkSchema,
     }),
   })
-  .transform(({ id, subject, estimatedTime, remainingTime, spentTime, startDate, dueDate, date, _links }) => ({
+  .transform(({ id, subject, lockVersion, estimatedTime, remainingTime, spentTime, startDate, dueDate, date, _links }) => ({
     id,
     subject,
+    lockVersion,
     status: _links.status,
     type: _links.type,
     priority: _links.priority,
@@ -174,3 +190,21 @@ export function opCollectionPageSchema<T extends z.ZodType>(element: T) {
     }),
   })
 }
+
+/**
+ * Erreur 422 d'OP. Une seule contrainte violée donne son message ; plusieurs donnent
+ * `MultipleErrors`, dont le message générique cède la place à ceux de `_embedded.errors`.
+ */
+export const opRejectionSchema = z
+  .object({
+    _type: z.literal('Error'),
+    message: z.string(),
+    _embedded: z.object({
+      errors: z.array(z.object({
+        message: z.string(),
+      })).optional(),
+    }).optional(),
+  })
+  .transform(({ message, _embedded }) => (_embedded?.errors?.length
+    ? _embedded.errors.map(error => error.message)
+    : [message]))

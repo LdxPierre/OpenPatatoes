@@ -21,6 +21,9 @@ export function sendOpRouteError(reply: FastifyReply, error: OpRouteError) {
       return reply.code(403).send({ error: 'op_forbidden', message: 'OpenProject refuse l\'accès à cette ressource.' })
     case 'OpNotFound':
       return reply.code(404).send({ error: 'op_not_found', message: 'Ressource introuvable dans OpenProject.' })
+    case 'OpRejected':
+      // Le message d'OP dit quelle valeur pose problème : l'utilisateur peut corriger sa saisie.
+      return reply.code(422).send({ error: 'op_rejected', message: error.message })
     case 'OpUnavailable':
       return reply
         .code(503)

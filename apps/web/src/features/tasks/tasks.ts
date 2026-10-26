@@ -1,10 +1,26 @@
-import type { TaskDetail, TaskNode } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRejectedResponse, TaskTreeResponse } from '@openpatatoes/shared'
+import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskDetailResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
-import { useQuery } from '@tanstack/vue-query'
+import { forEachTask, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
-import { apiFetch } from '@/shared/api/api-fetch'
+import { ApiError, apiFetch } from '@/shared/api/api-fetch'
+
+function taskTreeQueryKey(projectId: number) {
+  return [
+    ...projectsQueryKey,
+    projectId,
+    'tasks',
+  ]
+}
+
+function taskDetailQueryKey(taskId: number) {
+  return [
+    'tasks',
+    taskId,
+  ]
+}
 
 /**
  * Arbre des tâches d'un projet, en une seule requête. Les données ne sont pas rendues
@@ -12,11 +28,7 @@ import { apiFetch } from '@/shared/api/api-fetch'
  */
 export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
   return useQuery({
-    queryKey: computed(() => [
-      ...projectsQueryKey,
-      toValue(projectId),
-      'tasks',
-    ]),
+    queryKey: computed(() => taskTreeQueryKey(toValue(projectId))),
     queryFn: ({ signal }) => apiFetch(`/projects/${toValue(projectId)}/tasks`, { schema: taskTreeResponseSchema, signal }),
     select: data => data.tasks,
     shallow: true,
@@ -26,12 +38,190 @@ export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
 /** Détail d'une tâche, lu dans OP. */
 export function useTaskDetailQuery(taskId: MaybeRefOrGetter<number>) {
   return useQuery({
-    queryKey: computed(() => [
-      'tasks',
-      toValue(taskId),
-    ]),
+    queryKey: computed(() => taskDetailQueryKey(toValue(taskId))),
     queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}`, { schema: taskDetailResponseSchema, signal }),
     select: data => data.task,
+  })
+}
+
+/** Utilisateurs à qui la tâche peut être assignée. La liste n'est lue qu'à la demande. */
+export function useTaskAssigneesQuery(taskId: MaybeRefOrGetter<number>, enabled: MaybeRefOrGetter<boolean>) {
+  return useQuery({
+    queryKey: computed(() => [
+      ...taskDetailQueryKey(toValue(taskId)),
+      'assignees',
+    ]),
+    queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}/assignees`, { schema: taskAssigneesResponseSchema, signal }),
+    select: data => data.assignees,
+    enabled: () => toValue(enabled),
+    // Les membres d'un projet changent rarement : la liste sert pour plusieurs modifications.
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Modification d'une tâche, telle que l'interface l'affiche. Un champ absent reste inchangé,
+ * `null` le vide. L'assigné est complet : son nom s'affiche avant la réponse d'OP.
+ */
+export interface TaskEdit {
+  estimatedHours?: number | null
+  remainingHours?: number | null
+  assignee?: OpNamedRef | null
+}
+
+export interface TaskEditVariables {
+  projectId: number
+  taskId: number
+  edit: TaskEdit
+}
+
+const taskEditMutationKey = ['tasks', 'edit']
+
+function applyEdit(task: TaskDetail, edit: TaskEdit): TaskDetail {
+  const changed = Object.fromEntries(Object.entries(edit).filter(([, value]) => value !== undefined))
+  return {
+    ...task,
+    ...changed,
+  }
+}
+
+/** Modifications d'une tâche encore en route vers OP, dans l'ordre où elles ont été lancées. */
+function pendingEdits(queryClient: QueryClient, taskId: number): TaskEditVariables[] {
+  return queryClient.getMutationCache()
+    .findAll({ mutationKey: taskEditMutationKey, status: 'pending' })
+    .map(mutation => mutation.state.variables as TaskEditVariables)
+    .filter(variables => variables.taskId === taskId)
+}
+
+/**
+ * Enregistre la tâche dans le cache du détail, et son assigné dans l'arbre du projet.
+ * Les modifications encore en route vers OP restent affichées par-dessus, sauf `settled`,
+ * celle qui vient d'obtenir sa réponse.
+ */
+function showTask(queryClient: QueryClient, { projectId, taskId }: TaskEditVariables, base: TaskDetail, settled?: TaskEditVariables) {
+  const task = pendingEdits(queryClient, taskId)
+    .filter(variables => variables !== settled)
+    .reduce((shown, variables) => applyEdit(shown, variables.edit), base)
+  queryClient.setQueryData<TaskDetailResponse>(taskDetailQueryKey(taskId), { task })
+  queryClient.setQueryData<TaskTreeResponse>(
+    taskTreeQueryKey(projectId),
+    tree => tree && {
+      tasks: withAssignee(tree.tasks, taskId, task.assignee),
+    },
+  )
+}
+
+/** L'arbre avec l'assigné d'une tâche remplacé. Seules les tâches du chemin sont copiées. */
+export function withAssignee(roots: TaskNode[], taskId: number, assignee: OpNamedRef | null): TaskNode[] {
+  const path = taskPath(roots, taskId)
+  const task = path?.at(-1)
+  if (!path || !task || (task.assignee?.id ?? null) === (assignee?.id ?? null))
+    return roots
+  let node: TaskNode = { ...task, assignee }
+  for (const parent of path.slice(0, -1).reverse()) {
+    const child = node
+    node = {
+      ...parent,
+      children: parent.children.map(sibling => sibling.id === child.id
+        ? child
+        : sibling),
+    }
+  }
+  const root = node
+  return roots.map(task => task.id === root.id
+    ? root
+    : task)
+}
+
+/** Le refus d'OP, avec son message et l'état réel de la tâche ; `null` pour toute autre erreur. */
+export function taskRejection(error: Error): TaskRejectedResponse | null {
+  if (!(error instanceof ApiError) || error.code !== 'op_rejected')
+    return null
+  const parsed = taskRejectedResponseSchema.safeParse(error.body)
+  return parsed.success
+    ? parsed.data
+    : null
+}
+
+/** Champs d'une tâche dont la modification attend la réponse d'OP. */
+export function usePendingTaskFields(taskId: MaybeRefOrGetter<number>) {
+  const pending = useMutationState({
+    filters: { mutationKey: taskEditMutationKey, status: 'pending' },
+    select: mutation => mutation.state.variables as TaskEditVariables,
+  })
+  return computed(() => new Set(pending.value
+    .filter(variables => variables.taskId === toValue(taskId))
+    .flatMap(variables => Object.keys(variables.edit))))
+}
+
+/**
+ * Modifie le temps estimé, le temps restant ou l'assigné d'une tâche. La modification
+ * s'affiche tout de suite ; si OP la refuse, l'affichage revient à l'état réel.
+ * Les modifications partent l'une après l'autre, toutes tâches confondues : chacune envoie
+ * la version de la tâche que la précédente a obtenue d'OP.
+ *
+ * `onFailure` est appelé pour chaque modification qui échoue, même si d'autres ont été
+ * lancées depuis : l'état de `useMutation` ne suit que la dernière.
+ */
+export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, variables: TaskEditVariables) => void } = {}) {
+  const queryClient = useQueryClient()
+
+  function cachedTask(taskId: number) {
+    return queryClient.getQueryData<TaskDetailResponse>(taskDetailQueryKey(taskId))?.task
+  }
+
+  return useMutation({
+    mutationKey: taskEditMutationKey,
+    scope: { id: 'task-edit' },
+    mutationFn: ({ taskId, edit }: TaskEditVariables) => {
+      const task = cachedTask(taskId)
+      if (!task)
+        throw new Error(`Tâche ${taskId} absente du cache`)
+      const { assignee, ...hours } = edit
+      return apiFetch(`/tasks/${taskId}`, {
+        method: 'PATCH',
+        body: {
+          lockVersion: task.lockVersion,
+          ...hours,
+          ...(assignee === undefined
+            ? {}
+            : { assigneeId: assignee?.id ?? null }),
+        },
+        schema: taskDetailResponseSchema,
+      })
+    },
+    onMutate: async (variables) => {
+      // Une lecture en cours effacerait l'affichage optimiste en arrivant.
+      await Promise.all([
+        queryClient.cancelQueries({
+          queryKey: taskDetailQueryKey(variables.taskId),
+          exact: true,
+        }),
+        queryClient.cancelQueries({
+          queryKey: taskTreeQueryKey(variables.projectId),
+          exact: true,
+        }),
+      ])
+      const current = cachedTask(variables.taskId)
+      if (current)
+        showTask(queryClient, variables, applyEdit(current, variables.edit))
+    },
+    onSuccess: ({ task }, variables) => showTask(queryClient, variables, task, variables),
+    onError: async (error, variables) => {
+      try {
+        // Sans l'état réel joint au refus, on le relit : le cache mêle des valeurs jamais enregistrées.
+        const real = taskRejection(error)?.task
+          ?? (await apiFetch(`/tasks/${variables.taskId}`, { schema: taskDetailResponseSchema })).task
+        showTask(queryClient, variables, real, variables)
+      }
+      catch {
+        await queryClient.invalidateQueries({
+          queryKey: taskDetailQueryKey(variables.taskId),
+          exact: true,
+        })
+      }
+      onFailure?.(error, variables)
+    },
   })
 }
 

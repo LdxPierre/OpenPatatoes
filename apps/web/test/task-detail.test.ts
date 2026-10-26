@@ -29,6 +29,7 @@ const tree = [
 /** Détail renvoyé par l'API ; seules les valeurs utiles au test sont données. */
 function detail(task: Pick<TaskDetail, 'id' | 'subject'> & Partial<TaskDetail>): TaskDetail {
   return {
+    lockVersion: 0,
     status: { id: 1, name: 'Nouveau', isClosed: false },
     type: { id: 1, name: 'Tâche' },
     priority: null,

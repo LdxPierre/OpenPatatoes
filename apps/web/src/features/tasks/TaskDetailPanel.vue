@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { TaskNode } from '@openpatatoes/shared'
+import type { TaskEdit, TaskEditVariables } from './tasks'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { onKeyStroke } from '@vueuse/core'
-import { computed, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
 import { dueHint, formatDay, formatFullDay, formatHours } from './format'
-import { taskPreview, useTaskDetailQuery } from './tasks'
+import TaskAssigneePicker from './TaskAssigneePicker.vue'
+import TaskHoursField from './TaskHoursField.vue'
+import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
 
 /**
  * Détail d'une tâche, à côté de l'arbre du projet. Le parent est relié au titre
@@ -29,6 +32,7 @@ const preview = computed(() => props.tree && taskPreview(props.tree, props.taskI
 /** En-tête : la réponse d'OP, ou ce que l'arbre sait déjà de la tâche. */
 const header = computed(() => detail.data.value ?? preview.value)
 
+// Les champs et la liste des assignés arrêtent leur Échap : il ne ferme pas le détail.
 onKeyStroke('Escape', () => emit('close'))
 
 const closeButton = useTemplateRef('closeButton')
@@ -41,20 +45,68 @@ function takeFocus() {
 onMounted(takeFocus)
 watch(() => [props.taskId, props.covering], takeFocus, { flush: 'post' })
 
-const hours = computed(() => {
+const errorMessages: OpErrorMessages = {
+  forbidden: 'OpenProject refuse l\'accès à cette tâche avec votre jeton. Vérifiez vos droits sur son projet dans OpenProject.',
+  // Comme pour les projets, OP masque ce qu'on n'a pas le droit de voir : un 404 peut être un refus.
+  notFound: 'Cette tâche est introuvable ou inaccessible avec votre jeton OpenProject. Elle a peut-être été supprimée.',
+  fallback: 'L\'app n\'a pas pu ouvrir cette tâche. Réessayez dans un instant.',
+}
+
+/** Dernière modification de cette tâche qui a échoué ; effacée dès que l'utilisateur en lance une autre. */
+const failure = shallowRef<{ error: Error, variables: TaskEditVariables } | null>(null)
+watch(() => props.taskId, () => {
+  failure.value = null
+})
+
+const editMutation = useTaskEditMutation({
+  onFailure: (error, variables) => {
+    if (variables.taskId === props.taskId)
+      failure.value = { error, variables }
+  },
+})
+
+/** Champs en attente de la réponse d'OP. */
+const pendingFields = usePendingTaskFields(() => props.taskId)
+
+const failedFields = computed(() => Object.keys(failure.value?.variables.edit ?? {}) as (keyof TaskEdit)[])
+const rejection = computed(() => failure.value && taskRejection(failure.value.error))
+
+/** Champs dont la modification a échoué : ils sont revenus à l'état réel. */
+const rejectedFields = computed(() => new Set<string>(failedFields.value))
+
+const fieldNames: Record<keyof TaskEdit, string> = {
+  estimatedHours: 'le temps estimé',
+  remainingHours: 'le temps restant',
+  assignee: 'l\'assigné',
+}
+
+const editErrorMessages = computed<OpErrorMessages>(() => {
+  const what = failedFields.value.map(field => fieldNames[field]).join(' et ')
+  return {
+    // Le message d'un refus vient d'OP, qui nomme le champ en cause.
+    fallback: rejection.value?.message ?? `L'app n'a pas pu modifier ${what}. Réessayez dans un instant.`,
+    forbidden: `OpenProject ne vous permet pas de modifier ${what} de cette tâche. Demandez ce droit à un administrateur du projet dans OpenProject.`,
+    notFound: errorMessages.notFound,
+  }
+})
+
+function mutate(variables: TaskEditVariables) {
+  failure.value = null
+  editMutation.mutate(variables)
+}
+
+function save(edit: TaskEdit) {
+  mutate({ projectId: props.projectId, taskId: props.taskId, edit })
+}
+
+const editableHours = computed(() => {
   const task = detail.data.value
   if (!task)
     return []
   return [
-    { label: 'Estimé', value: task.estimatedHours },
-    { label: 'Restant', value: task.remainingHours },
-    // Sans droit de voir le temps passé, OP ne le donne pas : on n'en parle pas.
-    ...(task.spentHours === null
-      ? []
-      : [
-          { label: 'Passé', value: task.spentHours },
-        ]),
-  ]
+    { field: 'estimatedHours', label: 'Estimé', value: task.estimatedHours },
+    { field: 'remainingHours', label: 'Restant', value: task.remainingHours },
+  ] as const
 })
 
 interface FieldValue {
@@ -148,13 +200,6 @@ const closedSubtasksText = computed(() => {
     ? 'fermées'
     : 'fermée'}`
 })
-
-const errorMessages: OpErrorMessages = {
-  forbidden: 'OpenProject refuse l\'accès à cette tâche avec votre jeton. Vérifiez vos droits sur son projet dans OpenProject.',
-  // Comme pour les projets, OP masque ce qu'on n'a pas le droit de voir : un 404 peut être un refus.
-  notFound: 'Cette tâche est introuvable ou inaccessible avec votre jeton OpenProject. Elle a peut-être été supprimée.',
-  fallback: 'L\'app n\'a pas pu ouvrir cette tâche. Réessayez dans un instant.',
-}
 </script>
 
 <template>
@@ -184,11 +229,19 @@ const errorMessages: OpErrorMessages = {
         <h2 id="task-detail-title" :class="{ child: header.parent }">
           {{ header.subject }}
         </h2>
-        <p class="summary">
+        <div class="summary">
           <StatusBadge :status="header.status" />
-          <span v-if="header.assignee">{{ header.assignee.name }}</span>
+          <TaskAssigneePicker
+            v-if="detail.data.value"
+            :task-id="taskId"
+            :assignee="detail.data.value.assignee"
+            :pending="pendingFields.has('assignee')"
+            :rejected="rejectedFields.has('assignee')"
+            @select="assignee => save({ assignee })"
+          />
+          <span v-else-if="header.assignee">{{ header.assignee.name }}</span>
           <span class="ref op-num">#{{ header.id }}</span>
-        </p>
+        </div>
       </template>
 
       <p v-else-if="detail.isPending.value" class="muted opening" role="status">
@@ -212,16 +265,33 @@ const errorMessages: OpErrorMessages = {
         </p>
         <template v-else>
           <dl class="hours">
-            <div v-for="item in hours" :key="item.label" class="hour">
-              <dt>{{ item.label }}</dt>
-              <dd v-if="item.value === null" class="empty">
-                Non renseigné
-              </dd>
-              <dd v-else class="op-num">
-                {{ formatHours(item.value) }}
+            <TaskHoursField
+              v-for="item in editableHours"
+              :key="item.field"
+              :label="item.label"
+              :value="item.value"
+              :pending="pendingFields.has(item.field)"
+              :rejected="rejectedFields.has(item.field)"
+              @save="hours => save({ [item.field]: hours })"
+            />
+            <!-- Sans droit de voir le temps passé, OP ne le donne pas : on n'en parle pas. -->
+            <div v-if="detail.data.value?.spentHours != null" class="hour">
+              <dt>Passé</dt>
+              <dd class="op-num">
+                {{ formatHours(detail.data.value.spentHours) }}
               </dd>
             </div>
           </dl>
+          <div v-if="failure" class="edit-error">
+            <OpErrorAlert
+              :error="failure.error"
+              :messages="editErrorMessages"
+              @retry="mutate(failure.variables)"
+            />
+          </div>
+          <p class="sr-only" role="status">
+            {{ pendingFields.size ? 'Enregistrement dans OpenProject…' : '' }}
+          </p>
           <dl class="fields">
             <div v-for="field in fields" :key="field.label" class="field" :class="field.column">
               <dt>{{ field.label }}</dt>
@@ -383,11 +453,15 @@ dt {
 .hour dd {
   font-size: var(--op-text-lg);
   font-weight: 500;
+  line-height: 1.75rem;
 }
 
-.hour dd.empty {
-  font-size: var(--op-text-sm);
-  font-weight: 400;
+.edit-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--op-space-2);
+  margin-bottom: var(--op-space-3);
 }
 
 /* Une propriété par ligne de 28 px, libellé et valeur côte à côte. */
