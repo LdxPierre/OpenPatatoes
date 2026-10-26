@@ -116,7 +116,11 @@ function cancel() {
 
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  /*
+   * Centré dans la ligne de 28 px, et non sur la ligne de base : celle-ci dépend de la taille
+   * du texte, qui change entre une valeur, « Non renseigné » et le champ de saisie.
+   */
+  align-items: center;
   gap: 0 var(--op-space-2);
 }
 
@@ -173,7 +177,7 @@ dd {
 .edit {
   position: relative;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
 }
 
 /*

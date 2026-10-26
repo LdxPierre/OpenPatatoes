@@ -440,13 +440,15 @@ dt {
 .hours {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--op-space-1) var(--op-space-5);
   margin-bottom: var(--op-space-2);
 }
 
 .hour {
   display: flex;
-  align-items: baseline;
+  /* Centré comme les heures modifiables, pour rester sur la même ligne qu'elles. */
+  align-items: center;
   gap: var(--op-space-2);
 }
 
