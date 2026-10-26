@@ -27,6 +27,12 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     depends_on:
       postgres: {condition: service_healthy}
+    # Prêt une fois les migrations appliquées et le serveur à l'écoute.
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:3000/api/health]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   web:
     build: {context: ., target: web}
@@ -34,7 +40,7 @@ services:
     ports:
       - '${WEB_PORT:-8080}:80'
     depends_on:
-      - api
+      api: {condition: service_healthy}
 
 volumes:
   pgdata:
