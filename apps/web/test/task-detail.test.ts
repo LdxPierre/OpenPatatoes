@@ -43,6 +43,7 @@ function detail(task: Pick<TaskDetail, 'id' | 'subject'> & Partial<TaskDetail>):
     version: null,
     category: null,
     parent: null,
+    description: '',
     ...task,
   }
 }

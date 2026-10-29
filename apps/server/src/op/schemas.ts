@@ -1,6 +1,7 @@
 import type { OpNamedRef, TaskAllowedValuesResponse, TaskDetail } from '@openpatatoes/shared'
 import { z } from 'zod'
 import { isoDurationToHours } from './duration.js'
+import { sanitizeMarkdown } from './sanitize-markdown.js'
 
 /**
  * Schémas Zod des réponses de l'API OP v3 (HAL). Ils ne retiennent que les champs
@@ -132,6 +133,7 @@ const opDateSchema = z.iso.date().nullish().transform(date => date ?? null)
  * Le statut n'a que son nom : la route y ajoute `isClosed` depuis la liste des statuts.
  * `spentTime` n'est présent que si le jeton a le droit de voir le temps passé.
  * Un jalon n'a qu'une date (`date`) : elle sert de début et d'échéance.
+ * La description garde son markdown, assaini : l'interface en fait l'aperçu et l'édite.
  */
 export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
   .extend({
@@ -142,6 +144,9 @@ export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
     startDate: opDateSchema,
     dueDate: opDateSchema,
     date: opDateSchema,
+    description: z.object({
+      raw: z.string().nullish(),
+    }).nullish(),
     _links: opWorkPackageBaseSchema.shape._links.extend({
       status: opResourceLinkSchema,
       type: opResourceLinkSchema,
@@ -152,7 +157,7 @@ export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
       category: opOptionalLinkSchema,
     }),
   })
-  .transform(({ id, subject, lockVersion, estimatedTime, remainingTime, spentTime, startDate, dueDate, date, _links }) => ({
+  .transform(({ id, subject, lockVersion, estimatedTime, remainingTime, spentTime, startDate, dueDate, date, description, _links }) => ({
     id,
     subject,
     lockVersion,
@@ -169,6 +174,7 @@ export const opWorkPackageDetailSchema = opWorkPackageBaseSchema
     version: _links.version,
     category: _links.category,
     parent: _links.parent && { id: _links.parent.id, subject: _links.parent.name },
+    description: sanitizeMarkdown(description?.raw ?? ''),
   }) satisfies Omit<TaskDetail, 'status'> & { status: OpNamedRef })
 
 export type OpWorkPackageDetail = z.output<typeof opWorkPackageDetailSchema>

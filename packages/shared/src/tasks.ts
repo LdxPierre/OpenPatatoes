@@ -65,6 +65,8 @@ export type TaskRef = z.infer<typeof taskRefSchema>
  * Les dates sont des jours au format ISO (`2026-10-31`), sans heure.
  * `parent` vaut `null` pour une tâche racine ou un parent invisible avec le jeton.
  * `lockVersion` est la version de la tâche dans OP, à renvoyer avec chaque modification.
+ * `description` est le markdown d'OP, vide sans description, privé de ses éléments `<script>`
+ * et de ses attributs d'événement (`onclick`…).
  */
 export const taskDetailSchema = taskRefSchema.extend({
   lockVersion: z.number().int(),
@@ -81,6 +83,7 @@ export const taskDetailSchema = taskRefSchema.extend({
   version: opNamedRefSchema.nullable(),
   category: opNamedRefSchema.nullable(),
   parent: taskRefSchema.nullable(),
+  description: z.string(),
 })
 
 export type TaskDetail = z.infer<typeof taskDetailSchema>
@@ -112,7 +115,7 @@ const opIdSchema = z.number().int().positive()
 
 /**
  * Corps de `PATCH /api/tasks/:id`. Un champ absent reste inchangé, `null` le vide ;
- * au moins un champ doit être modifié. L'état, le type et la priorité ne se vident pas :
+ * au moins un champ doit être modifié. La description est du markdown ; une chaîne vide l'efface. L'état, le type et la priorité ne se vident pas :
  * OP les exige. `parentId` à `null` fait de la tâche une racine. `lockVersion` est celui de la tâche lue : OP refuse l'écriture si la tâche
  * a changé depuis.
  */
@@ -126,6 +129,7 @@ export const taskChangesSchema = z
     typeId: opIdSchema.optional(),
     priorityId: opIdSchema.optional(),
     parentId: opIdSchema.nullable().optional(),
+    description: z.string().optional(),
   })
   .refine(
     ({ lockVersion: _, ...changes }) => Object.values(changes).some(value => value !== undefined),

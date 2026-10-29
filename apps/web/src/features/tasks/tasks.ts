@@ -90,6 +90,8 @@ export interface TaskEdit {
   type?: OpNamedRef
   priority?: OpNamedRef
   parent?: TaskRef | null
+  /** Markdown ; une chaîne vide efface la description. */
+  description?: string
 }
 
 export interface TaskEditVariables {
@@ -217,7 +219,7 @@ export function usePendingTaskFields(taskId: MaybeRefOrGetter<number>) {
 }
 
 /**
- * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité ou le parent d'une tâche. La modification
+ * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité, le parent ou la description d'une tâche. La modification
  * s'affiche tout de suite ; si OP la refuse, l'affichage revient à l'état réel.
  * Les modifications partent l'une après l'autre, toutes tâches confondues : chacune envoie
  * la version de la tâche que la précédente a obtenue d'OP.
@@ -239,12 +241,12 @@ export function useTaskEditMutation({ onFailure }: { onFailure?: (error: Error, 
       const task = cachedTask(taskId)
       if (!task)
         throw new Error(`Tâche ${taskId} absente du cache`)
-      const { assignee, status, type, priority, parent, ...hours } = edit
+      const { assignee, status, type, priority, parent, ...fields } = edit
       return apiFetch(`/tasks/${taskId}`, {
         method: 'PATCH',
         body: {
           lockVersion: task.lockVersion,
-          ...hours,
+          ...fields,
           ...(assignee !== undefined && { assigneeId: assignee?.id ?? null }),
           ...(status && { statusId: status.id }),
           ...(type && { typeId: type.id }),

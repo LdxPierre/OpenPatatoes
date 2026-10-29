@@ -21,6 +21,8 @@ export interface Scenario {
       estimatedTime?: string | null
       remainingTime?: string | null
       statusId?: number
+      /** Markdown, tel qu'OP le stocke. */
+      description?: string
       /** Statuts proposés par le formulaire OP pour cette tâche (transitions autorisées). */
       allowedStatusIds?: number[]
     }>

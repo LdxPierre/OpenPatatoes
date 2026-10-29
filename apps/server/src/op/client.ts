@@ -64,8 +64,8 @@ export interface OpClientOptions {
   baseUrl: string
 }
 
-/** Corps de `PATCH /work_packages/:id` : durées en ISO 8601, assigné, état, type, priorité et parent en liens HAL. */
-function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigneeId, statusId, typeId, priorityId, parentId }: TaskChanges) {
+/** Corps de `PATCH /work_packages/:id` : durées en ISO 8601, assigné, état, type, priorité et parent en liens HAL, description en markdown. */
+function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigneeId, statusId, typeId, priorityId, parentId, description }: TaskChanges) {
   const duration = (hours: number | null) => (hours === null
     ? null
     : hoursToIsoDuration(hours))
@@ -99,6 +99,9 @@ function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigne
     }),
     ...(remainingHours !== undefined && {
       remainingTime: duration(remainingHours),
+    }),
+    ...(description !== undefined && {
+      description: { raw: description },
     }),
     ...(Object.keys(links).length > 0 && {
       _links: links,
