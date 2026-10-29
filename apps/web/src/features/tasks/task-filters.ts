@@ -126,7 +126,7 @@ export function filterTaskTree(roots: TaskNode[], criteria: TaskCriteria, curren
   }
 }
 
-/** Tâches de l'arbre filtré qui ont des enfants : celles à déplier pour montrer chaque résultat. */
+/** Tâches de l'arbre qui ont des enfants : celles qu'on peut déplier. */
 export function taskIdsWithChildren(roots: TaskNode[]): number[] {
   const ids: number[] = []
   forEachTask(roots, (task) => {

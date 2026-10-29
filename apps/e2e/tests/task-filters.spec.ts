@@ -111,6 +111,8 @@ test.describe('filtres et recherche de l\'arbre', () => {
     await expect(tree.getByRole('treeitem')).toHaveCount(4)
     await page.getByRole('button', { name: 'Tout replier' }).click()
     await expect(tree.getByRole('treeitem')).toHaveText([/Préparer le terrain/, /Commander le terreau/])
+    await page.getByRole('button', { name: 'Tout déplier' }).click()
+    await expect(tree.getByRole('treeitem')).toHaveCount(4)
 
     // Sous un filtre, le bouton agit sur l'arbre filtré, déplié jusqu'au résultat.
     await page.getByRole('searchbox', { name: 'Rechercher une tâche par numéro ou titre' }).fill('becher')
@@ -122,6 +124,7 @@ test.describe('filtres et recherche de l\'arbre', () => {
 
     // Sans critère, l'arbre retrouve le dépliage d'avant le filtre.
     await page.getByRole('button', { name: 'Effacer les filtres' }).click()
-    await expect(tree.getByRole('treeitem')).toHaveText([/Préparer le terrain/, /Commander le terreau/])
+    await expect(tree.getByRole('treeitem')).toHaveCount(4)
+    await expect(page.getByRole('button', { name: 'Tout replier' })).toBeVisible()
   })
 })

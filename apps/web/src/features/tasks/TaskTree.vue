@@ -115,14 +115,21 @@ function sameIds(a: Set<number>, b: Set<number>) {
   return a.size === b.size && [...a].every(id => b.has(id))
 }
 
+/** Nœuds dépliables de l'arbre filtré précédent : seuls les nouveaux se déplient à la relecture. */
+let filterExpandable = new Set<number>()
+
 watch(() => props.matchIds, (matchIds, previous) => {
   if (matchIds) {
     // Des données relues sans changer les résultats gardent le repli choisi par l'utilisateur ;
     // un ancêtre nouveau (tâche déplacée) se déplie quand même.
-    if (!previous || !sameIds(matchIds, previous))
+    const sameResults = previous != null && sameIds(matchIds, previous)
+    if (!sameResults)
       filterExpanded.clear()
-    for (const id of taskIdsWithChildren(props.tasks))
-      filterExpanded.add(id)
+    for (const id of expandableIds.value) {
+      if (!sameResults || !filterExpandable.has(id))
+        filterExpanded.add(id)
+    }
+    filterExpandable = new Set(expandableIds.value)
     return
   }
   if (!previous || activeId.value === null)
@@ -224,9 +231,9 @@ function focusActive() {
   focusRow(activeIndex.value)
 }
 
-/** Déplie tous les niveaux, ou replie tout. Une fois tout replié, la ligne active passe sur sa racine. */
-function setAllExpanded(open: boolean) {
-  if (open) {
+/** Déplie tous les niveaux, ou replie tout s'ils le sont déjà. Tout replié, la ligne active passe sur sa racine. */
+function toggleAll() {
+  if (!allExpanded.value) {
     for (const id of expandableIds.value)
       expanded.value.add(id)
     return
@@ -243,7 +250,7 @@ defineExpose({
   focusActive,
   expandable,
   allExpanded,
-  setAllExpanded,
+  toggleAll,
 })
 
 /** Titre complet au focus, seulement s'il est coupé. Au survol, l'attribut `title` suffit. */

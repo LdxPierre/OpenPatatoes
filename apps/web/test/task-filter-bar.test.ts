@@ -307,6 +307,7 @@ describe('filtres et recherche de l\'arbre', () => {
   it('déplie ou replie tout l\'arbre filtré, puis retrouve le dépliage d\'avant sans critère', async () => {
     const wrapper = await openProject()
     const expandAll = () => wrapper.find('button[aria-label="Tout déplier"], button[aria-label="Tout replier"]')
+    await wrapper.find('[role="treeitem"] .toggle').trigger('click')
 
     await search(wrapper, 'migration')
     // L'arbre filtré est déplié jusqu'au résultat : il n'y a plus qu'à tout replier.
@@ -322,8 +323,31 @@ describe('filtres et recherche de l\'arbre', () => {
 
     await clearButton(wrapper)!.trigger('click')
     await flushPromises()
-    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
+    expect(rowTitles(wrapper)).toEqual([
+      'Refonte du portail client',
+      'Parcours de connexion',
+      'Espace documents',
+      'Contrat de maintenance 2027',
+    ])
     expect(expandAll().attributes('aria-label')).toBe('Tout déplier')
+  })
+
+  it('garde l\'arbre filtré replié quand les données relues ne changent pas les résultats', async () => {
+    const wrapper = await openProject('/projets/1?q=migration')
+    await wrapper.find('button[aria-label="Tout replier"]').trigger('click')
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client'])
+
+    // Une autre tâche change, comme après une modification dans le détail.
+    queryClient.setQueryData<TaskTreeResponse>(['projects', 1, 'tasks'], data => data && {
+      ...data,
+      tasks: data.tasks.map(task => task.id === 20
+        ? { ...task, subject: 'Contrat renouvelé' }
+        : task),
+    })
+    await flushPromises()
+
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client'])
+    expect(wrapper.find('button[aria-label="Tout déplier"]').exists()).toBe(true)
   })
 
   it('masque le bouton quand aucune tâche ne correspond, ou que les résultats n\'ont pas de sous-tâches', async () => {

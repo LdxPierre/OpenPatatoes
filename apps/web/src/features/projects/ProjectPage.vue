@@ -196,7 +196,7 @@ const taskErrorMessages: OpErrorMessages = {
               <TaskExpandAllButton
                 v-if="tree?.expandable"
                 :all-expanded="tree.allExpanded"
-                @toggle="tree.setAllExpanded(!tree.allExpanded)"
+                @toggle="tree.toggleAll()"
               />
             </div>
 
