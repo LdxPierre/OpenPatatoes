@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="T extends string | number">
 import type { CriterionOption } from './task-filters'
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { Button } from '@/shared/components/ui/button'
 import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxItem, ComboboxItemIndicator, ComboboxList, ComboboxTrigger, ComboboxViewport } from '@/shared/components/ui/combobox'
 import { foldText } from './task-filters'
@@ -26,7 +26,14 @@ defineSlots<{
 
 const selected = defineModel<T[]>({ required: true })
 
+const open = shallowRef(false)
 const search = shallowRef('')
+
+// Une liste rouverte repart de toutes les options.
+watch(open, (opened) => {
+  if (!opened)
+    search.value = ''
+})
 
 const shown = computed(() => {
   const text = search.value.trim()
@@ -52,12 +59,12 @@ function choose(values: unknown) {
 
 <template>
   <Combobox
+    v-model:open="open"
     multiple
     ignore-filter
     :model-value="keys"
     :reset-search-term-on-select="false"
     @update:model-value="choose"
-    @update:open="open => open || (search = '')"
   >
     <ComboboxAnchor as-child>
       <ComboboxTrigger as-child>
@@ -72,7 +79,7 @@ function choose(values: unknown) {
     </ComboboxAnchor>
 
     <ComboboxList :aria-label="label" class="w-[280px]">
-      <ComboboxInput v-model="search" :placeholder="texts.search" :display-value="() => ''" />
+      <ComboboxInput v-model="search" :placeholder="texts.search" :display-value="() => ''" @keydown.escape.stop.prevent="open = false" />
       <ComboboxViewport>
         <p v-if="shown.length === 0" class="note" role="status">
           {{ texts.noMatch }}

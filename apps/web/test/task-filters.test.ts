@@ -1,7 +1,7 @@
 import type { TaskNode } from '@openpatatoes/shared'
 import type { TaskCriteria } from '@/features/tasks/task-filters'
 import { describe, expect, it } from 'vitest'
-import { criteriaFromQuery, criteriaOptions, filterTaskTree, NO_CRITERIA, queryWithCriteria, taskIdsWithChildren } from '@/features/tasks/task-filters'
+import { criteriaFromQuery, criteriaOptions, filterTaskTree, knownCriteria, NO_CRITERIA, queryWithCriteria, taskIdsWithChildren } from '@/features/tasks/task-filters'
 
 const nouveau = { id: 1, name: 'Nouveau', isClosed: false }
 const enCours = { id: 7, name: 'En cours', isClosed: false }
@@ -271,6 +271,29 @@ describe('critères dans l\'adresse', () => {
     }
 
     expect(criteriaFromQuery(queryWithCriteria({}, criteria) as Record<string, string>)).toEqual(criteria)
+  })
+
+  it('n\'écrit pas une recherche faite seulement d\'espaces', () => {
+    expect(queryWithCriteria({ q: 'avant' }, { ...NO_CRITERIA, search: '   ' })).toEqual({})
+  })
+
+  it('ignore un identifiant bien formé que les filtres ne proposent pas', () => {
+    const options = criteriaOptions(tree, alice.id)
+
+    expect(knownCriteria({
+      search: 'export',
+      statuses: ['closed', 99],
+      types: [bug.id, 99],
+      assignees: ['me', bob.id, 99],
+      // 3 n'a pas de sous-tâches.
+      parents: [2, 3],
+    }, options)).toEqual({
+      search: 'export',
+      statuses: ['closed'],
+      types: [bug.id],
+      assignees: ['me', bob.id],
+      parents: [2],
+    })
   })
 
   it('ignore une valeur inconnue ou invalide', () => {

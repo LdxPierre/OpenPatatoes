@@ -90,7 +90,7 @@ useEventListener(document, 'keydown', (event: KeyboardEvent) => {
       placeholder="Rechercher par numéro ou titre"
       aria-label="Rechercher une tâche par numéro ou titre"
       aria-keyshortcuts="/"
-      @keydown.escape.prevent="clearSearch"
+      @keydown.escape.stop.prevent="clearSearch"
     />
     <TaskCriterionFilter
       :model-value="criteria.statuses"

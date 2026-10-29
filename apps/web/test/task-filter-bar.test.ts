@@ -236,6 +236,28 @@ describe('filtres et recherche de l\'arbre', () => {
     expect(currentPath()).toBe('/projets/1')
   })
 
+  it('vide la recherche avec Échap sans fermer le détail ouvert', async () => {
+    const wrapper = await openProject('/projets/1/taches/12?q=migration')
+    expect(wrapper.find('aside').exists()).toBe(true)
+
+    await searchField(wrapper).trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+
+    expect(searchField(wrapper).element.value).toBe('')
+    expect(currentPath()).toBe('/projets/1/taches/12')
+    expect(wrapper.find('aside').exists()).toBe(true)
+  })
+
+  it('ignore un identifiant que le projet ne propose pas', async () => {
+    // 999 : aucun type de ce numéro ; 13 : une tâche sans sous-tâche.
+    const wrapper = await openProject('/projets/1?type=999&parent=13')
+
+    expect(filterButton(wrapper, 'Type').text()).toBe('Type')
+    expect(filterButton(wrapper, 'Parent').text()).toBe('Parent')
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
+    expect(count(wrapper)).toBe('5 tâches')
+  })
+
   it('place le curseur dans la recherche avec /, sauf pendant une saisie', async () => {
     const wrapper = await openProject()
 

@@ -4,7 +4,7 @@ import type { OpErrorMessages } from '@/shared/api/op-error'
 import { useMediaQuery } from '@vueuse/core'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { criteriaFromQuery, criteriaOptions, filterTaskTree, hasCriteria, queryWithCriteria } from '@/features/tasks/task-filters'
+import { criteriaFromQuery, criteriaOptions, filterTaskTree, hasCriteria, knownCriteria, queryWithCriteria } from '@/features/tasks/task-filters'
 import TaskCreateDialog from '@/features/tasks/TaskCreateDialog.vue'
 import TaskFilterBar from '@/features/tasks/TaskFilterBar.vue'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
@@ -58,17 +58,20 @@ const taskTree = useTaskTreeQuery(() => props.id)
 const tasks = computed(() => taskTree.data.value?.tasks)
 const currentUserId = computed(() => taskTree.data.value?.currentUserId ?? null)
 
-/** Critères de l'arbre, gardés dans l'adresse sans remplir l'historique. */
+const options = computed(() => criteriaOptions(tasks.value ?? [], currentUserId.value))
+
+/**
+ * Critères de l'arbre, gardés dans l'adresse sans remplir l'historique. Une valeur que les filtres
+ * ne proposent pas est ignorée ; elle quitte l'adresse au prochain changement de critères.
+ */
 const criteria = computed({
-  get: () => criteriaFromQuery(route.query),
+  get: () => knownCriteria(criteriaFromQuery(route.query), options.value),
   set: (next: TaskCriteria) => {
     router.replace({
       query: queryWithCriteria(route.query, next),
     })
   },
 })
-
-const options = computed(() => criteriaOptions(tasks.value ?? [], currentUserId.value))
 
 /** Arbre réduit aux critères ; `null` sans critère. */
 const filtered = computed(() => tasks.value && hasCriteria(criteria.value)

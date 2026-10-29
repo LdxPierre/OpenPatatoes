@@ -152,7 +152,10 @@ export interface CriteriaOptions {
   parents: CriterionOption<number>[]
 }
 
-function counted(refs: Map<number, { ref: OpNamedRef, count: number }>): CriterionOption<number>[] {
+/** Ressources d'OP trouvées dans l'arbre, avec leur nombre de tâches. */
+type CountedRefs = Map<number, { ref: OpNamedRef, count: number }>
+
+function counted(refs: CountedRefs): CriterionOption<number>[] {
   return [
     ...refs.values(),
   ]
@@ -160,7 +163,7 @@ function counted(refs: Map<number, { ref: OpNamedRef, count: number }>): Criteri
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
 }
 
-function addTo(refs: Map<number, { ref: OpNamedRef, count: number }>, ref: OpNamedRef) {
+function addTo(refs: CountedRefs, ref: OpNamedRef) {
   const entry = refs.get(ref.id)
   if (entry)
     entry.count++
@@ -173,9 +176,9 @@ function addTo(refs: Map<number, { ref: OpNamedRef, count: number }>, ref: OpNam
  * et « Tous les fermés », l'assigné par « Moi » et « Non assigné ».
  */
 export function criteriaOptions(roots: TaskNode[], currentUserId: number | null): CriteriaOptions {
-  const statuses = new Map<number, { ref: OpNamedRef, count: number }>()
-  const types = new Map<number, { ref: OpNamedRef, count: number }>()
-  const assignees = new Map<number, { ref: OpNamedRef, count: number }>()
+  const statuses: CountedRefs = new Map()
+  const types: CountedRefs = new Map()
+  const assignees: CountedRefs = new Map()
   const parents: CriterionOption<number>[] = []
   let open = 0
   let closed = 0
@@ -272,7 +275,7 @@ export function queryWithCriteria(query: LocationQuery, criteria: TaskCriteria):
   const next: LocationQueryRaw = { ...query }
   for (const key of Object.values(QUERY_KEYS))
     delete next[key]
-  if (criteria.search)
+  if (criteria.search.trim())
     next[QUERY_KEYS.search] = criteria.search
   for (const key of [
     'statuses',
@@ -284,4 +287,20 @@ export function queryWithCriteria(query: LocationQuery, criteria: TaskCriteria):
       next[QUERY_KEYS[key]] = criteria[key].join(',')
   }
   return next
+}
+
+/**
+ * Critères réduits aux valeurs que les filtres proposent : un identifiant bien formé mais absent
+ * du projet (lien ancien, tâche supprimée) est ignoré, comme une valeur invalide.
+ */
+export function knownCriteria(criteria: TaskCriteria, options: CriteriaOptions): TaskCriteria {
+  const known = <T>(values: T[], offered: CriterionOption<T>[]) =>
+    values.filter(value => offered.some(option => option.value === value))
+  return {
+    search: criteria.search,
+    statuses: known(criteria.statuses, options.statuses),
+    types: known(criteria.types, options.types),
+    assignees: known(criteria.assignees, options.assignees),
+    parents: known(criteria.parents, options.parents),
+  }
 }

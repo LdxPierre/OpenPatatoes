@@ -105,7 +105,14 @@ const selectedParentId = computed(() => props.selectedId == null
   ? null
   : taskPath(props.tasks, props.selectedId)?.at(-2)?.id ?? null)
 
+function sameIds(a: Set<number>, b: Set<number>) {
+  return a.size === b.size && [...a].every(id => b.has(id))
+}
+
 watch(() => props.matchIds, (matchIds, previous) => {
+  // Des données relues sans changer les résultats gardent le dépliage de l'utilisateur.
+  if (matchIds && previous && sameIds(matchIds, previous))
+    return
   if (matchIds) {
     filterExpanded.clear()
     for (const id of taskIdsWithChildren(props.tasks))
