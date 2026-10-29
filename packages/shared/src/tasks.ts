@@ -88,7 +88,10 @@ export const taskDetailSchema = taskRefSchema.extend({
 
 export type TaskDetail = z.infer<typeof taskDetailSchema>
 
-/** Réponse de `GET` et `PATCH /api/tasks/:id` : après une modification, la tâche telle qu'OP l'a enregistrée. */
+/**
+ * Réponse de `GET` et `PATCH /api/tasks/:id`, et de `POST /api/projects/:id/tasks` : après une création
+ * ou une modification, la tâche telle qu'OP l'a enregistrée.
+ */
 export const taskDetailResponseSchema = z.object({
   task: taskDetailSchema,
 })
@@ -137,6 +140,22 @@ export const taskChangesSchema = z
   )
 
 export type TaskChanges = z.infer<typeof taskChangesSchema>
+
+/** Plus long titre accepté par OP, en caractères. */
+export const TASK_SUBJECT_MAX_LENGTH = 255
+
+/**
+ * Corps de `POST /api/projects/:id/tasks` : la tâche à créer dans le projet. Le titre est rogné
+ * et ne peut pas être vide. `parentId` à `null` en fait une racine. Les autres champs prennent
+ * les valeurs par défaut d'OP.
+ */
+export const newTaskSchema = z.strictObject({
+  typeId: opIdSchema,
+  subject: z.string().trim().min(1).max(TASK_SUBJECT_MAX_LENGTH),
+  parentId: opIdSchema.nullable(),
+})
+
+export type NewTask = z.infer<typeof newTaskSchema>
 
 /**
  * Réponse de `PATCH /api/tasks/:id` quand la modification n'est pas enregistrée. En 422, elle est

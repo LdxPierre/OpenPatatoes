@@ -22,3 +22,19 @@ export const projectResponseSchema = z.object({
 })
 
 export type ProjectResponse = z.infer<typeof projectResponseSchema>
+
+/** Type de tâche actif dans un projet. `isDefault` marque le type par défaut de l'instance OP. */
+export const projectTypeSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  isDefault: z.boolean(),
+})
+
+export type ProjectType = z.infer<typeof projectTypeSchema>
+
+/** Réponse de `GET /api/projects/:id/types` : les types de tâche actifs dans le projet, dans l'ordre d'OP. */
+export const projectTypesResponseSchema = z.object({
+  types: z.array(projectTypeSchema),
+})
+
+export type ProjectTypesResponse = z.infer<typeof projectTypesResponseSchema>

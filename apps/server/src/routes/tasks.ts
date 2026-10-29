@@ -1,34 +1,17 @@
-import type { OpNamedRef, TaskActivitiesResponse, TaskActivity, TaskActivityResponse, TaskAllowedValuesResponse, TaskAssigneesResponse, TaskDetail, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskActivitiesResponse, TaskActivity, TaskActivityResponse, TaskAllowedValuesResponse, TaskAssigneesResponse, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import type { OpApi } from '../op/client.js'
 import type { OpError } from '../op/errors.js'
-import type { OpActivity, OpWorkPackageDetail } from '../op/schemas.js'
+import type { OpActivity } from '../op/schemas.js'
 import { taskChangesSchema, taskCommentSchema } from '@openpatatoes/shared'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
 import { wouldCreateCycle } from '../tasks/hierarchy.js'
+import { withClosedStatus } from '../tasks/status.js'
 import { sendOpRouteError } from './op-errors.js'
 import { idParamsSchema } from './params.js'
-
-/**
- * Complète la tâche lue dans OP avec le caractère fermé de son statut : le lien d'état
- * d'une tâche ne le dit pas, seuls les statuts le donnent. Sans eux, la tâche reste
- * lisible : son état est alors traité comme ouvert.
- */
-function withClosedStatus(api: OpApi, workPackage: ResultAsync<OpWorkPackageDetail, OpError>): ResultAsync<TaskDetail, OpError> {
-  return ResultAsync.combine([
-    workPackage,
-    api.listStatuses().orElse(() => okAsync([])),
-  ]).map(([task, statuses]) => ({
-    ...task,
-    status: {
-      ...task.status,
-      isClosed: statuses.find(status => status.id === task.status.id)?.isClosed ?? false,
-    },
-  }))
-}
 
 /** Parent d'une tâche ; `null` pour une tâche introuvable ou invisible avec le jeton : la remontée s'y arrête. */
 function parentIdOf(api: OpApi, id: number): ResultAsync<number | null, OpError> {

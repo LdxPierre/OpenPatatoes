@@ -1,7 +1,7 @@
-import type { OpNamedRef, TaskActivitiesResponse, TaskDetail, TaskDetailResponse, TaskNode, TaskRef, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
+import type { NewTask, OpNamedRef, ProjectType, TaskActivitiesResponse, TaskDetail, TaskDetailResponse, TaskNode, TaskRef, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
 import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskActivitiesResponseSchema, taskActivityResponseSchema, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { forEachTask, projectTypesResponseSchema, taskActivitiesResponseSchema, taskActivityResponseSchema, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
@@ -249,6 +249,103 @@ function withChildren(roots: TaskNode[], path: TaskNode[], update: (children: Ta
       : sibling)
   }
   return children
+}
+
+/**
+ * Types de tâche actifs dans le projet. La liste n'est lue qu'à la demande ; les types
+ * d'un projet changent rarement, elle sert pour plusieurs créations.
+ */
+export function useProjectTypesQuery(projectId: MaybeRefOrGetter<number>, enabled: MaybeRefOrGetter<boolean>) {
+  return useQuery({
+    queryKey: computed(() => [
+      ...projectsQueryKey,
+      toValue(projectId),
+      'types',
+    ]),
+    queryFn: ({ signal }) => apiFetch(`/projects/${toValue(projectId)}/types`, { schema: projectTypesResponseSchema, signal }),
+    select: data => data.types,
+    enabled: () => toValue(enabled),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Noms du type « Tâche » d'OP, selon la langue de l'instance. */
+const TASK_TYPE_NAMES = new Set(['task', 'tâche'])
+
+/**
+ * Type proposé pour une nouvelle tâche : le type « Tâche » s'il est actif dans le projet,
+ * sinon le type par défaut d'OP, sinon le premier ; `null` sans aucun type.
+ */
+export function defaultTaskType(types: ProjectType[]): ProjectType | null {
+  return types.find(type => TASK_TYPE_NAMES.has(type.name.trim().toLocaleLowerCase('fr')))
+    ?? types.find(type => type.isDefault)
+    ?? types[0]
+    ?? null
+}
+
+/**
+ * L'arbre avec une nouvelle tâche sous `parentId`, parmi ses frères rangés par identifiant
+ * comme dans la liste d'OP. Un parent absent de l'arbre en fait une racine, comme côté serveur.
+ * Seules les tâches du chemin sont copiées.
+ */
+export function withNewTask(roots: TaskNode[], task: TaskNode, parentId: number | null): TaskNode[] {
+  const parentPath = parentId === null
+    ? []
+    : taskPath(roots, parentId) ?? []
+  return withChildren(roots, parentPath, (children) => {
+    const index = children.findIndex(child => child.id > task.id)
+    return children.toSpliced(index === -1
+      ? children.length
+      : index, 0, task)
+  })
+}
+
+export interface TaskCreateVariables {
+  projectId: number
+  task: NewTask
+}
+
+/**
+ * Crée une tâche dans le projet. La création attend OP, qui donne son identifiant : rien ne
+ * s'affiche avant. Une fois créée, la tâche entre dans l'arbre et son détail est en cache,
+ * puis l'arbre est relu.
+ */
+export function useTaskCreateMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ projectId, task }: TaskCreateVariables) =>
+      apiFetch(`/projects/${projectId}/tasks`, {
+        method: 'POST',
+        body: task,
+        schema: taskDetailResponseSchema,
+      }),
+    onSuccess: async (response, { projectId }) => {
+      const { task } = response
+      queryClient.setQueryData<TaskDetailResponse>(taskDetailQueryKey(task.id), response)
+      const node: TaskNode = {
+        id: task.id,
+        subject: task.subject,
+        status: task.status,
+        assignee: task.assignee,
+        children: [],
+      }
+      // Une lecture en cours, partie avant la création, effacerait la tâche en arrivant.
+      await queryClient.cancelQueries({
+        queryKey: taskTreeQueryKey(projectId),
+        exact: true,
+      })
+      queryClient.setQueryData<TaskTreeResponse>(
+        taskTreeQueryKey(projectId),
+        tree => tree && {
+          tasks: withNewTask(tree.tasks, node, task.parent?.id ?? null),
+        },
+      )
+      void queryClient.invalidateQueries({
+        queryKey: taskTreeQueryKey(projectId),
+        exact: true,
+      })
+    },
+  })
 }
 
 /** Le refus d'OP ou de l'app, avec son message et l'état réel de la tâche ; `null` pour toute autre erreur. */

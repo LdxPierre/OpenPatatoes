@@ -24,6 +24,8 @@ export interface FakeProject {
   memberIds: number[]
   /** Type OP du projet ; `Project` si absent. Portefeuilles et programmes sont listés comme des projets. */
   type?: 'Project' | 'Program' | 'Portfolio'
+  /** Types de tâche actifs dans le projet, dans cet ordre ; tous les types de l'instance si absent. */
+  typeIds?: number[]
 }
 
 export interface FakeStatus {
@@ -53,6 +55,9 @@ export const FAKE_TYPES = {
   milestone: { id: 2, name: 'Milestone' },
   bug: { id: 7, name: 'Bug' },
 } as const satisfies Record<string, FakeNamedRef>
+
+/** Type par défaut de l'instance (`isDefault`), comme le type « Task » d'une installation d'OP. */
+export const FAKE_DEFAULT_TYPE_ID: number = FAKE_TYPES.task.id
 
 /** Priorités de l'instance, proposées par le formulaire OP. */
 export const FAKE_PRIORITIES = {
@@ -310,6 +315,11 @@ interface LinkPatch {
   href: string | null
 }
 
+interface WorkPackageCreation {
+  subject?: string
+  _links?: { type?: LinkPatch, parent?: LinkPatch }
+}
+
 interface WorkPackagePatch {
   lockVersion?: number
   subject?: string
@@ -408,6 +418,30 @@ export async function startFakeOp(): Promise<FakeOp> {
         activities: { href: `/api/v3/work_packages/${workPackage.id}/activities` },
       },
     }
+  }
+
+  const addWorkPackage: FakeOp['addWorkPackage'] = (workPackage) => {
+    const created: FakeWorkPackage = {
+      lockVersion: 0,
+      parentId: null,
+      assigneeId: null,
+      statusId: FAKE_STATUSES.new.id,
+      estimatedTime: null,
+      remainingTime: null,
+      spentTime: 'PT0S',
+      responsibleId: null,
+      startDate: null,
+      dueDate: null,
+      type: FAKE_TYPES.task,
+      priority: FAKE_PRIORITIES.normal,
+      version: null,
+      category: null,
+      description: '',
+      allowedStatusIds: Object.values(FAKE_STATUSES).map(status => status.id),
+      ...workPackage,
+    }
+    state.workPackages.push(created)
+    return created
   }
 
   const isMember = (project: FakeProject, user: FakeUser) => project.memberIds.includes(user.id)
@@ -690,6 +724,68 @@ export async function startFakeOp(): Promise<FakeOp> {
     },
   )
 
+  /** Types actifs dans le projet ; un type hors du projet n'est pas permis à ses tâches. */
+  const projectTypes = (project: FakeProject) => {
+    const all: FakeNamedRef[] = Object.values(FAKE_TYPES)
+    return project.typeIds
+      ? project.typeIds.flatMap(id => all.find(type => type.id === id) ?? [])
+      : all
+  }
+
+  app.get<{ Params: { id: string }, Querystring: CollectionQuery }>(
+    '/api/v3/projects/:id/types',
+    async (request, reply) => {
+      const project = accessibleProject(request, reply, Number(request.params.id))
+      if (!project)
+        return reply
+      const types = projectTypes(project).map((type, index) => ({
+        _type: 'Type',
+        ...type,
+        color: '#1A67A3',
+        position: index + 1,
+        isDefault: type.id === FAKE_DEFAULT_TYPE_ID,
+        isMilestone: type.id === FAKE_TYPES.milestone.id,
+        _links: {
+          self: namedLink('types', type),
+        },
+      }))
+      return paginatedCollection(types, request.query, `/api/v3/projects/${project.id}/types`)
+    },
+  )
+
+  /**
+   * Comme OP, la tâche créée prend l'état et la priorité par défaut, sans assigné, et son
+   * historique commence par sa création, au nom de l'utilisateur du jeton.
+   */
+  app.post<{ Params: { id: string }, Body: WorkPackageCreation }>(
+    '/api/v3/projects/:id/work_packages',
+    async (request, reply) => {
+      const project = accessibleProject(request, reply, Number(request.params.id))
+      if (!project)
+        return reply
+      const { subject, _links } = request.body
+      if (!subject?.trim())
+        return constraintViolation(reply, 'subject', 'Subject can\'t be blank.')
+      const type = projectTypes(project).find(candidate => candidate.id === idFromHref(_links?.type?.href ?? null))
+      if (!type)
+        return constraintViolation(reply, 'type', 'Type is not set to one of the allowed values.')
+      const parentId = idFromHref(_links?.parent?.href ?? null)
+      if (parentId !== null && !state.workPackages.some(candidate => candidate.id === parentId))
+        return constraintViolation(reply, 'parent', 'Parent does not exist.')
+
+      const created = addWorkPackage({
+        id: Math.max(0, ...state.workPackages.map(candidate => candidate.id)) + 1,
+        projectId: project.id,
+        subject,
+        type,
+        parentId,
+        spentTime: null,
+      })
+      addActivity({ workPackageId: created.id, userId: currentUser(request).id })
+      return reply.code(201).send(workPackageResource(created))
+    },
+  )
+
   const workPackage = (id: number) => {
     const found = state.workPackages.find(candidate => candidate.id === id)
     if (!found)
@@ -717,29 +813,7 @@ export async function startFakeOp(): Promise<FakeOp> {
       state.projects.push(project)
       return project
     },
-    addWorkPackage: (workPackage) => {
-      const created: FakeWorkPackage = {
-        lockVersion: 0,
-        parentId: null,
-        assigneeId: null,
-        statusId: FAKE_STATUSES.new.id,
-        estimatedTime: null,
-        remainingTime: null,
-        spentTime: 'PT0S',
-        responsibleId: null,
-        startDate: null,
-        dueDate: null,
-        type: FAKE_TYPES.task,
-        priority: FAKE_PRIORITIES.normal,
-        version: null,
-        category: null,
-        description: '',
-        allowedStatusIds: Object.values(FAKE_STATUSES).map(status => status.id),
-        ...workPackage,
-      }
-      state.workPackages.push(created)
-      return created
-    },
+    addWorkPackage,
     workPackage,
     touchWorkPackage: (id) => {
       workPackage(id).lockVersion += 1

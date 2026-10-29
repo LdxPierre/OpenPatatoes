@@ -10,7 +10,8 @@ import { taskPath } from './tasks'
  * ne sont pas proposées : elles créeraient un cycle, que le serveur refuse de toute façon.
  */
 const props = defineProps<{
-  taskId: number
+  /** Tâche dont on choisit le parent ; absente pour une tâche à créer, qui peut aller sous n'importe laquelle. */
+  taskId?: number
   parent: TaskRef | null
   /** Arbre du projet ; `undefined` tant qu'il n'est pas lu. */
   tree: TaskNode[] | undefined
@@ -34,8 +35,10 @@ const value = computed(() => props.parent && { id: props.parent.id, name: props.
 const choices = computed(() => {
   if (!props.tree)
     return undefined
-  const task = taskPath(props.tree, props.taskId)?.at(-1)
-  const excluded = new Set([props.taskId])
+  const excluded = new Set<number>()
+  const task = props.taskId === undefined
+    ? undefined
+    : taskPath(props.tree, props.taskId)?.at(-1)
   if (task)
     forEachTask([task], descendant => excluded.add(descendant.id))
   const choices: OpNamedRef[] = []
