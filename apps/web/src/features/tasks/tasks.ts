@@ -30,7 +30,6 @@ export function useTaskTreeQuery(projectId: MaybeRefOrGetter<number>) {
   return useQuery({
     queryKey: computed(() => taskTreeQueryKey(toValue(projectId))),
     queryFn: ({ signal }) => apiFetch(`/projects/${toValue(projectId)}/tasks`, { schema: taskTreeResponseSchema, signal }),
-    select: data => data.tasks,
     shallow: true,
   })
 }
@@ -185,23 +184,24 @@ function showTask(queryClient: QueryClient, { projectId, taskId }: TaskEditVaria
   queryClient.setQueryData<TaskTreeResponse>(
     taskTreeQueryKey(projectId),
     tree => tree && {
+      ...tree,
       tasks: withTreeFields(withParent(tree.tasks, taskId, task.parent?.id ?? null), taskId, task),
     },
   )
 }
 
-/** Ce que l'arbre affiche d'une tâche, en plus de son titre. */
-type TreeFields = Pick<TaskNode, 'status' | 'assignee'>
+/** Ce que l'arbre sait d'une tâche, en plus de son titre : ce qu'il affiche et ce qu'il filtre. */
+type TreeFields = Pick<TaskNode, 'status' | 'type' | 'assignee'>
 
-/** L'arbre avec l'état et l'assigné d'une tâche remplacés. Seules les tâches du chemin sont copiées. */
-export function withTreeFields(roots: TaskNode[], taskId: number, { status, assignee }: TreeFields): TaskNode[] {
+/** L'arbre avec l'état, le type et l'assigné d'une tâche remplacés. Seules les tâches du chemin sont copiées. */
+export function withTreeFields(roots: TaskNode[], taskId: number, { status, type, assignee }: TreeFields): TaskNode[] {
   const path = taskPath(roots, taskId)
   const task = path?.at(-1)
   if (!path || !task)
     return roots
-  if (task.status.id === status.id && (task.assignee?.id ?? null) === (assignee?.id ?? null))
+  if (task.status.id === status.id && task.type.id === type.id && (task.assignee?.id ?? null) === (assignee?.id ?? null))
     return roots
-  const updated = { ...task, status, assignee }
+  const updated = { ...task, status, type, assignee }
   return withChildren(roots, path.slice(0, -1), children => children.map(child => child === task
     ? updated
     : child))
@@ -326,6 +326,7 @@ export function useTaskCreateMutation() {
         id: task.id,
         subject: task.subject,
         status: task.status,
+        type: task.type,
         assignee: task.assignee,
         children: [],
       }
@@ -337,6 +338,7 @@ export function useTaskCreateMutation() {
       queryClient.setQueryData<TaskTreeResponse>(
         taskTreeQueryKey(projectId),
         tree => tree && {
+          ...tree,
           tasks: withNewTask(tree.tasks, node, task.parent?.id ?? null),
         },
       )

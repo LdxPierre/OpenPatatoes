@@ -14,7 +14,7 @@ describe('ouverture d\'un projet', () => {
   beforeEach(() => {
     fakeApi.signedIn()
     for (const id of [1, 2])
-      fakeApi.on('GET', `/projects/${id}/tasks`, () => ({ tasks: [] }))
+      fakeApi.on('GET', `/projects/${id}/tasks`, () => ({ currentUserId: 1, tasks: [] }))
   })
 
   it('ouvre le projet depuis la liste', async () => {

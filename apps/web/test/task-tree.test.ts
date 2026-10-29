@@ -12,6 +12,7 @@ function task(id: number, subject: string, children: TaskNode[] = [], extra: Par
     id,
     subject,
     status: { id: 1, name: 'Nouveau', isClosed: false },
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children,
     ...extra,
@@ -36,7 +37,7 @@ const tree = [
 
 async function openProject(tasks: TaskNode[] = tree) {
   fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
-  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks }))
   return mountApp('/projets/1')
 }
 

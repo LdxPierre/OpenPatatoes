@@ -14,6 +14,7 @@ function node(id: number, subject: string): TaskNode {
     id,
     subject,
     status: { id: 1, name: 'Nouveau', isClosed: false },
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children: [],
   }
@@ -70,6 +71,7 @@ const history: TaskActivity[] = [
 function openApp(path: string, activities: Record<number, TaskActivity[]> = { 11: history }) {
   fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
   fakeApi.on('GET', '/projects/1/tasks', () => ({
+    currentUserId: 1,
     tasks: [
       node(11, 'Parcours de connexion'),
       node(20, 'Contrat de maintenance'),

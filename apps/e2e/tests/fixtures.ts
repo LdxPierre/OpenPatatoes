@@ -21,6 +21,8 @@ export interface Scenario {
       estimatedTime?: string | null
       remainingTime?: string | null
       statusId?: number
+      /** Type de la tâche, parmi ceux du faux OP (`Task` 1, `Milestone` 2, `Bug` 7). */
+      type?: { id: number, name: string }
       /** Markdown, tel qu'OP le stocke. */
       description?: string
       /** Statuts proposés par le formulaire OP pour cette tâche (transitions autorisées). */

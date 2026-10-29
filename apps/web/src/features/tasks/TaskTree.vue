@@ -5,6 +5,7 @@ import type { TaskRow } from './tasks'
 import { defaultRangeExtractor, useWindowVirtualizer } from '@tanstack/vue-virtual'
 import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from 'vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
+import { taskIdsWithChildren } from './task-filters'
 import { taskPath, visibleTaskRows } from './tasks'
 
 /**
@@ -12,18 +13,30 @@ import { taskPath, visibleTaskRows } from './tasks'
  * Les lignes sont virtualisées sur le défilement de la page : seules celles à l'écran existent.
  * Clavier : flèches haut et bas pour se déplacer, droite et gauche pour déplier et replier,
  * Espace pour basculer, Début et Fin pour aller aux extrémités. Entrée ou un clic ouvre le détail.
+ * Filtré, l'arbre se déplie jusqu'à chaque résultat ; sans critère, il retrouve le dépliage d'avant.
  */
 const props = defineProps<{
   tasks: TaskNode[]
   label: string
   /** Tâche dont le détail est ouvert : elle est surlignée, et ses ancêtres dépliés. */
   selectedId?: number | null
+  /**
+   * Arbre filtré : les tâches qui correspondent aux critères. Les autres tâches de `tasks`
+   * sont des ancêtres affichés pour le contexte, atténués. Absent sans critère.
+   */
+  matchIds?: Set<number> | null
 }>()
 
 const emit = defineEmits<{ open: [id: number] }>()
 
-const expanded = reactive(new Set<number>())
-const rows = computed(() => visibleTaskRows(props.tasks, expanded))
+/** Dépliage choisi sans critère, retrouvé quand on efface les critères. */
+const baseExpanded = reactive(new Set<number>())
+/** Dépliage de l'arbre filtré : tout ce qui mène à un résultat. */
+const filterExpanded = reactive(new Set<number>())
+const expanded = computed(() => props.matchIds
+  ? filterExpanded
+  : baseExpanded)
+const rows = computed(() => visibleTaskRows(props.tasks, expanded.value))
 
 /** Ligne active : la seule atteinte par Tab, et celle que l'on surligne. */
 const activeId = ref<number | null>(null)
@@ -78,7 +91,7 @@ async function revealSelected() {
   if (!path)
     return
   for (const ancestor of path.slice(0, -1))
-    expanded.add(ancestor.id)
+    expanded.value.add(ancestor.id)
   activeId.value = props.selectedId
   if (!listMeasured.value)
     return
@@ -91,6 +104,20 @@ async function revealSelected() {
 const selectedParentId = computed(() => props.selectedId == null
   ? null
   : taskPath(props.tasks, props.selectedId)?.at(-2)?.id ?? null)
+
+watch(() => props.matchIds, (matchIds, previous) => {
+  if (matchIds) {
+    filterExpanded.clear()
+    for (const id of taskIdsWithChildren(props.tasks))
+      filterExpanded.add(id)
+    return
+  }
+  if (!previous || activeId.value === null)
+    return
+  // Critères effacés : la tâche active reste visible dans le dépliage d'avant.
+  for (const ancestor of taskPath(props.tasks, activeId.value)?.slice(0, -1) ?? [])
+    baseExpanded.add(ancestor.id)
+}, { immediate: true })
 
 watch([
   () => props.selectedId,
@@ -120,13 +147,13 @@ function setExpanded(index: number, open: boolean) {
   if (!row || !row.hasChildren || row.expanded === open)
     return
   if (open) {
-    expanded.add(row.task.id)
+    expanded.value.add(row.task.id)
     return
   }
   // Une ligne active cachée par le repli laisse la main à la tâche repliée.
   if (isDescendant(activeIndex.value, index))
     activeId.value = row.task.id
-  expanded.delete(row.task.id)
+  expanded.value.delete(row.task.id)
 }
 
 async function focusRow(index: number) {
@@ -233,7 +260,7 @@ function guideStyle(level: number) {
         v-for="{ row, index, top } in virtualRows"
         :key="row.task.id"
         class="tree-row task"
-        :class="{ root: row.depth === 0, selected: row.task.id === selectedId, revealed: row.task.id === revealedId }"
+        :class="{ root: row.depth === 0, selected: row.task.id === selectedId, revealed: row.task.id === revealedId, context: matchIds && !matchIds.has(row.task.id) }"
         role="treeitem"
         :data-index="index"
         :tabindex="index === activeIndex ? 0 : -1"
@@ -349,6 +376,13 @@ function guideStyle(level: number) {
 
 .task.revealed {
   z-index: 1;
+}
+
+/* Ancêtre d'un résultat, affiché pour le contexte : il ne correspond pas aux critères. */
+.task.context .name,
+.task.context .assignee,
+.task.context .status-cell {
+  opacity: 0.55;
 }
 
 .title {

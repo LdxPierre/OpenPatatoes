@@ -18,6 +18,7 @@ function node(id: number, subject: string, children: TaskNode[] = []): TaskNode 
     id,
     subject,
     status: nouveau,
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children,
   }
@@ -68,7 +69,7 @@ async function openTask() {
   fakeApi.on('GET', '/projects/1', () => ({
     project: { id: 1, identifier: 'alpha', name: 'Alpha' },
   }))
-  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
   fakeApi.on('GET', '/tasks/11', () => ({ task: stored }))
   return mountApp('/projets/1/taches/11')
 }
@@ -615,21 +616,31 @@ describe('saisie des heures', () => {
   })
 })
 
-describe('état et assigné dans l\'arbre', () => {
-  it('ne copie que le chemin de la tâche modifiée', () => {
-    const updated = withTreeFields(tree, 11, { status: enCours, assignee: bruno })
+describe('état, type et assigné dans l\'arbre', () => {
+  const tache = { id: 1, name: 'Tâche' }
+  const bug = { id: 7, name: 'Bug' }
 
-    expect(updated[0]!.children[0]).toMatchObject({ status: enCours, assignee: bruno })
+  it('ne copie que le chemin de la tâche modifiée', () => {
+    const updated = withTreeFields(tree, 11, { status: enCours, type: bug, assignee: bruno })
+
+    expect(updated[0]!.children[0]).toMatchObject({ status: enCours, type: bug, assignee: bruno })
     expect(updated[1]).toBe(tree[1])
-    expect(tree[0]!.children[0]).toMatchObject({ status: nouveau, assignee: camille })
+    expect(tree[0]!.children[0]).toMatchObject({ status: nouveau, type: tache, assignee: camille })
   })
 
-  it('rend l\'arbre tel quel quand ni l\'état ni l\'assigné ne changent', () => {
+  it('remplace le type seul, que le filtre des types lit', () => {
+    const updated = withTreeFields(tree, 11, { status: nouveau, type: bug, assignee: camille })
+
+    expect(updated[0]!.children[0]).toMatchObject({ type: bug })
+  })
+
+  it('rend l\'arbre tel quel quand ni l\'état, ni le type, ni l\'assigné ne changent', () => {
     expect(withTreeFields(tree, 11, {
       status: { ...nouveau },
+      type: { ...tache },
       assignee: { ...camille },
     })).toBe(tree)
-    expect(withTreeFields(tree, 99, { status: enCours, assignee: bruno })).toBe(tree)
+    expect(withTreeFields(tree, 99, { status: enCours, type: bug, assignee: bruno })).toBe(tree)
   })
 })
 

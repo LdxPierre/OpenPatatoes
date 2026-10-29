@@ -6,7 +6,7 @@ import { SESSION_COOKIE } from '../src/auth/plugin.js'
 import { users } from '../src/db/schema.js'
 import { buildTestApp, connectAs } from './support/app.js'
 import { createTestDatabase, resetDatabase } from './support/database.js'
-import { FAKE_STATUSES, startFakeOp } from './support/fake-op.js'
+import { FAKE_STATUSES, FAKE_TYPES, startFakeOp } from './support/fake-op.js'
 
 const alice = { username: 'alice', password: 'mot-de-passe-alice' }
 
@@ -99,12 +99,13 @@ describe('arbre des tâches d\'un projet', () => {
     ])
   })
 
-  it('affiche pour chaque tâche son titre, son état et son assigné', async () => {
+  it('affiche pour chaque tâche son titre, son état, son type et son assigné', async () => {
     op.addWorkPackage({
       id: 10,
       projectId: 1,
       subject: 'Assignée',
       statusId: FAKE_STATUSES.inProgress.id,
+      type: FAKE_TYPES.bug,
       assigneeId: opAlice.id,
     })
     op.addWorkPackage({
@@ -117,17 +118,20 @@ describe('arbre des tâches d\'un projet', () => {
     const response = await getTasks()
 
     expect(response.json()).toEqual({
+      currentUserId: opAlice.id,
       tasks: [
         {
           id: 10,
           subject: 'Assignée',
           status: { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
+          type: { id: FAKE_TYPES.bug.id, name: 'Bug' },
           assignee: { id: opAlice.id, name: 'Alice OP' },
           children: [
             {
               id: 11,
               subject: 'Sans assigné',
               status: { id: FAKE_STATUSES.new.id, name: 'New', isClosed: false },
+              type: { id: FAKE_TYPES.task.id, name: 'Task' },
               assignee: null,
               children: [],
             },
@@ -184,6 +188,21 @@ describe('arbre des tâches d\'un projet', () => {
       { id: FAKE_STATUSES.delivered.id, name: 'Delivered', isClosed: true },
       { id: FAKE_STATUSES.inProgress.id, name: 'In progress', isClosed: false },
     ])
+  })
+
+  it('dit qui est l\'utilisateur OP du jeton, pour filtrer ses tâches', async () => {
+    const response = await getTasks()
+
+    expect(response.json()).toEqual({ currentUserId: opAlice.id, tasks: [] })
+  })
+
+  it('distingue OP indisponible à la lecture de l\'utilisateur du jeton', async () => {
+    op.interceptNext({ path: '/api/v3/users/me', status: 503 })
+
+    const response = await getTasks()
+
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toMatchObject({ error: 'op_unavailable' })
   })
 
   it('distingue OP indisponible à la lecture des statuts', async () => {
@@ -330,7 +349,7 @@ describe('arbre des tâches d\'un projet', () => {
     const response = await getTasks()
 
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ tasks: [] })
+    expect(response.json()).toEqual({ currentUserId: opAlice.id, tasks: [] })
   })
 
   it('traite un projet masqué par OP comme introuvable ou inaccessible', async () => {

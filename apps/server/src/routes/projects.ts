@@ -36,7 +36,10 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
       )
     })
 
-    /** Arbre des tâches du projet, construit depuis une seule liste OP (toutes pages suivies). */
+    /**
+     * Arbre des tâches du projet, construit depuis une seule liste OP (toutes pages suivies),
+     * avec l'utilisateur OP du jeton.
+     */
     app.get('/projects/:id/tasks', async (request, reply) => {
       const params = idParamsSchema.safeParse(request.params)
       if (!params.success)
@@ -47,10 +50,12 @@ export function projectRoutes(deps: AppDependencies): FastifyPluginAsync {
         ResultAsync.combine([
           api.listProjectWorkPackages(params.data.id),
           api.listStatuses(),
+          api.getCurrentUser(),
         ]),
       )
       return result.match(
-        ([workPackages, statuses]) => ({
+        ([workPackages, statuses, currentUser]) => ({
+          currentUserId: currentUser.id,
           tasks: buildTaskTree(workPackages, statuses),
         }) satisfies TaskTreeResponse,
         error => sendOpRouteError(reply, error),

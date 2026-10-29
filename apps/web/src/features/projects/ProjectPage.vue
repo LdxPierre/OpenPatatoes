@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import type { TaskCriteria } from '@/features/tasks/task-filters'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { useMediaQuery } from '@vueuse/core'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { criteriaFromQuery, criteriaOptions, filterTaskTree, hasCriteria, queryWithCriteria } from '@/features/tasks/task-filters'
 import TaskCreateDialog from '@/features/tasks/TaskCreateDialog.vue'
+import TaskFilterBar from '@/features/tasks/TaskFilterBar.vue'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
 import TaskTree from '@/features/tasks/TaskTree.vue'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
@@ -16,18 +19,22 @@ const props = defineProps<{
   taskId: number | null
 }>()
 
+const route = useRoute()
 const router = useRouter()
 const tree = useTemplateRef('tree')
+const filterBar = useTemplateRef('filterBar')
 
 /** Sur petit écran, le détail recouvre l'arbre, qui ne doit plus recevoir le focus. */
 const narrow = useMediaQuery('(max-width: 760px)')
 const detailCovers = computed(() => narrow.value && props.taskId !== null)
 
+/** Ouvrir ou fermer une tâche garde les critères de l'arbre dans l'adresse. */
 function openTask(taskId: number) {
   if (taskId !== props.taskId) {
     router.push({
       name: 'task',
       params: { id: props.id, taskId },
+      query: route.query,
     })
   }
 }
@@ -46,29 +53,63 @@ watch(() => props.taskId, (taskId) => {
     createdTaskId.value = null
 })
 
-/** Fermer le détail rend la main à l'arbre, sur la tâche qui était ouverte. */
+const project = useProjectQuery(() => props.id)
+const taskTree = useTaskTreeQuery(() => props.id)
+const tasks = computed(() => taskTree.data.value?.tasks)
+const currentUserId = computed(() => taskTree.data.value?.currentUserId ?? null)
+
+/** Critères de l'arbre, gardés dans l'adresse sans remplir l'historique. */
+const criteria = computed({
+  get: () => criteriaFromQuery(route.query),
+  set: (next: TaskCriteria) => {
+    router.replace({
+      query: queryWithCriteria(route.query, next),
+    })
+  },
+})
+
+const options = computed(() => criteriaOptions(tasks.value ?? [], currentUserId.value))
+
+/** Arbre réduit aux critères ; `null` sans critère. */
+const filtered = computed(() => tasks.value && hasCriteria(criteria.value)
+  ? filterTaskTree(tasks.value, criteria.value, currentUserId.value)
+  : null)
+
+const noMatch = computed(() => filtered.value?.tasks.length === 0)
+
+function taskCount(count: number) {
+  return count === 1
+    ? '1 tâche'
+    : `${count.toLocaleString('fr-FR')} tâches`
+}
+
+const countText = computed(() => {
+  if (!tasks.value?.length)
+    return null
+  const total = countTasks(tasks.value)
+  return filtered.value
+    ? `${taskCount(filtered.value.matchIds.size)} sur ${total.toLocaleString('fr-FR')}`
+    : taskCount(total)
+})
+
+/**
+ * Fermer le détail rend la main à l'arbre, sur la tâche qui était ouverte, ou sur la première ligne
+ * si les critères la masquent. Sans aucune ligne, la main va à la recherche.
+ */
 async function closeTask() {
   if (props.taskId === null)
     return
   await router.push({
     name: 'project',
     params: { id: props.id },
+    query: route.query,
   })
   await nextTick()
-  tree.value?.focusActive()
+  if (noMatch.value)
+    filterBar.value?.focusSearch()
+  else
+    tree.value?.focusActive()
 }
-
-const project = useProjectQuery(() => props.id)
-const tasks = useTaskTreeQuery(() => props.id)
-
-const countText = computed(() => {
-  if (!tasks.data.value?.length)
-    return null
-  const count = countTasks(tasks.data.value)
-  return count === 1
-    ? '1 tâche'
-    : `${count.toLocaleString('fr-FR')} tâches`
-})
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject refuse l\'accès à ce projet avec votre jeton. Demandez à en devenir membre dans OpenProject.',
@@ -112,42 +153,52 @@ const taskErrorMessages: OpErrorMessages = {
         <TaskCreateDialog
           :project-id="id"
           :project-name="project.data.value.name"
-          :tree="tasks.data.value"
+          :tree="tasks"
           @created="openCreatedTask"
         />
       </div>
 
       <div class="workspace" :class="{ 'with-detail': taskId !== null }">
         <div class="tasks" :inert="detailCovers">
-          <p v-if="tasks.isPending.value" class="muted" role="status">
+          <p v-if="taskTree.isPending.value" class="muted" role="status">
             Chargement des tâches…
           </p>
 
           <OpErrorAlert
-            v-else-if="tasks.error.value"
-            :error="tasks.error.value"
+            v-else-if="taskTree.error.value"
+            :error="taskTree.error.value"
             :messages="taskErrorMessages"
-            :retrying="tasks.isFetching.value"
-            @retry="tasks.refetch()"
+            :retrying="taskTree.isFetching.value"
+            @retry="taskTree.refetch()"
           />
 
-          <p v-else-if="tasks.data.value?.length === 0" class="muted" role="status">
+          <p v-else-if="tasks?.length === 0" class="muted" role="status">
             Ce projet n'a encore aucune tâche. Créez la première avec « Nouvelle tâche ».
           </p>
 
-          <TaskTree
-            v-else-if="tasks.data.value"
-            ref="tree"
-            :key="id"
-            :tasks="tasks.data.value"
-            :label="`Tâches de ${project.data.value.name}`"
-            :selected-id="taskId"
-            @open="openTask"
-          />
+          <template v-else-if="tasks">
+            <TaskFilterBar ref="filterBar" v-model="criteria" :options="options" />
+
+            <p v-if="noMatch" class="muted" role="status">
+              Aucune tâche ne correspond à ces critères.
+            </p>
+
+            <!-- Masqué sans être démonté : l'arbre garde son dépliage pour le retour sans critère. -->
+            <TaskTree
+              v-show="!noMatch"
+              ref="tree"
+              :key="id"
+              :tasks="filtered?.tasks ?? tasks"
+              :match-ids="filtered?.matchIds"
+              :label="`Tâches de ${project.data.value.name}`"
+              :selected-id="taskId"
+              @open="openTask"
+            />
+          </template>
         </div>
 
         <RouterView
-          :tree="tasks.data.value"
+          :tree="tasks"
           :covering="detailCovers"
           :focused="createdTaskId !== null && createdTaskId === taskId"
           @close="closeTask"

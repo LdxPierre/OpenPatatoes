@@ -20,6 +20,7 @@ export interface TaskNode {
   id: number
   subject: string
   status: TaskStatus
+  type: OpNamedRef
   assignee: OpNamedRef | null
   children: TaskNode[]
 }
@@ -37,14 +38,19 @@ export const taskNodeSchema: z.ZodType<TaskNode> = z.object({
   id: z.number().int(),
   subject: z.string(),
   status: taskStatusSchema,
+  type: opNamedRefSchema,
   assignee: opNamedRefSchema.nullable(),
   get children() {
     return z.array(taskNodeSchema)
   },
 })
 
-/** Réponse de `GET /api/projects/:id/tasks` : les racines de l'arbre, dans l'ordre d'OP. */
+/**
+ * Réponse de `GET /api/projects/:id/tasks` : les racines de l'arbre, dans l'ordre d'OP.
+ * `currentUserId` est l'utilisateur OP du jeton : le filtre « Moi » garde ses tâches.
+ */
 export const taskTreeResponseSchema = z.object({
+  currentUserId: z.number().int(),
   tasks: z.array(taskNodeSchema),
 })
 

@@ -13,6 +13,7 @@ function node(id: number, subject: string, children: TaskNode[] = []): TaskNode 
     id,
     subject,
     status: nouveau,
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children,
   }
@@ -65,7 +66,7 @@ async function openProject(tasks: TaskNode[] = tree, types: ProjectType[] = [bug
   fakeApi.on('GET', '/projects/1', () => ({
     project: { id: 1, identifier: 'alpha', name: 'Alpha' },
   }))
-  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks }))
   fakeApi.on('GET', '/projects/1/types', () => ({ types }))
   fakeApi.on('GET', '/tasks/30', () => ({
     task: created(),
@@ -186,6 +187,7 @@ describe('création d\'une tâche', () => {
     expect(fakeApi.calls.filter(call => call.method === 'POST')).toHaveLength(1)
 
     fakeApi.on('GET', '/projects/1/tasks', () => ({
+      currentUserId: 1,
       tasks: [
         ...tree,
         node(30, 'Préparer la démo'),
@@ -364,7 +366,7 @@ describe('création d\'une tâche', () => {
     fakeApi.on('GET', '/projects/1', () => ({
       project: { id: 1, identifier: 'alpha', name: 'Alpha' },
     }))
-    fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+    fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
     fakeApi.on('GET', '/projects/1/types', () => ({
       types: [tache],
     }))
