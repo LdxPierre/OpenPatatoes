@@ -19,7 +19,7 @@ import { okAsync } from 'neverthrow'
 export function buildTaskTree(workPackages: OpWorkPackage[], statuses: OpStatus[]): TaskNode[] {
   const closedStatusIds = new Set(statuses.filter(status => status.isClosed).map(status => status.id))
   const nodes = new Map<number, TaskNode>()
-  for (const { id, subject, status, assignee } of workPackages) {
+  for (const { id, subject, status, type, assignee } of workPackages) {
     nodes.set(id, {
       id,
       subject,
@@ -27,6 +27,7 @@ export function buildTaskTree(workPackages: OpWorkPackage[], statuses: OpStatus[
         ...status,
         isClosed: closedStatusIds.has(status.id),
       },
+      type,
       assignee,
       children: [],
     })

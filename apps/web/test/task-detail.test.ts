@@ -12,6 +12,7 @@ function task(id: number, subject: string, children: TaskNode[] = []): TaskNode 
     id,
     subject,
     status: { id: 1, name: 'Nouveau', isClosed: false },
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children,
   }
@@ -92,7 +93,7 @@ const details: Record<number, TaskDetail> = {
 
 function openApp(path: string) {
   fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
-  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
   for (const detail of Object.values(details))
     fakeApi.on('GET', `/tasks/${detail.id}`, () => ({ task: detail }))
   return mountApp(path)
@@ -355,7 +356,7 @@ describe('détail d\'une tâche', () => {
 
   it('dit quand la tâche est introuvable ou inaccessible, sans fermer l\'arbre', async () => {
     fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
-    fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+    fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
     fakeApi.on('GET', '/tasks/99', () => {
       throw new ApiError(404, 'op_not_found')
     })
@@ -368,7 +369,7 @@ describe('détail d\'une tâche', () => {
 
   it('affiche un refus d\'OP sans proposer de réessayer', async () => {
     fakeApi.on('GET', '/projects/1', () => ({ project: alpha }))
-    fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+    fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
     fakeApi.on('GET', '/tasks/20', () => {
       throw new ApiError(403, 'op_forbidden')
     })

@@ -28,6 +28,7 @@ const tree: TaskNode[] = [
     id: 11,
     subject: 'Parcours de connexion',
     status: { id: 1, name: 'Nouveau', isClosed: false },
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children: [],
   },
@@ -57,7 +58,7 @@ async function openTask(task: TaskDetail = stored) {
   fakeApi.on('GET', '/projects/1', () => ({
     project: { id: 1, identifier: 'alpha', name: 'Alpha' },
   }))
-  fakeApi.on('GET', '/projects/1/tasks', () => ({ tasks: tree }))
+  fakeApi.on('GET', '/projects/1/tasks', () => ({ currentUserId: 1, tasks: tree }))
   fakeApi.on('GET', '/tasks/11', () => ({ task }))
   return mountApp('/projets/1/taches/11')
 }

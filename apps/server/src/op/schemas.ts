@@ -84,6 +84,7 @@ export const opWorkPackageSchema = opWorkPackageBaseSchema
   .extend({
     _links: opWorkPackageBaseSchema.shape._links.extend({
       status: opResourceLinkSchema,
+      type: opResourceLinkSchema,
       assignee: opOptionalLinkSchema,
     }),
   })
@@ -92,6 +93,7 @@ export const opWorkPackageSchema = opWorkPackageBaseSchema
     subject,
     parentId: _links.parent?.id ?? null,
     status: _links.status,
+    type: _links.type,
     assignee: _links.assignee,
   }))
 

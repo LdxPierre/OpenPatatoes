@@ -8,6 +8,7 @@ function task(id: number, children: TaskNode[] = []): TaskNode {
     id,
     subject: `Tâche ${id}`,
     status: { id: 1, name: 'Nouveau', isClosed: false },
+    type: { id: 1, name: 'Tâche' },
     assignee: null,
     children,
   }
