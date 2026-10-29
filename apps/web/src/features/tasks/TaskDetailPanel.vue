@@ -4,7 +4,6 @@ import type { TaskEdit, TaskEditVariables } from './tasks'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { onKeyStroke } from '@vueuse/core'
 import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
-import { ApiError } from '@/shared/api/api-fetch'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
@@ -145,7 +144,7 @@ function editedValue(edit: TaskEdit, field: Exclude<keyof TaskEdit, 'description
 }
 
 /** La tâche a changé dans OP depuis sa lecture : la modification n'est pas partie, la tâche a été relue. */
-const conflict = computed(() => failure.value?.error instanceof ApiError && failure.value.error.code === 'op_conflict')
+const conflict = computed(() => rejection.value?.error === 'op_conflict')
 
 /**
  * Modification à réappliquer après un conflit, sur la tâche relue. La description n'y est pas :
@@ -479,6 +478,7 @@ const closedSubtasksText = computed(() => {
             :description="detail.data.value.description"
             :pending="pendingFields.has('description')"
             :rejected="rejectedFields.has('description')"
+            :show-current="conflict && rejectedFields.has('description')"
             @save="text => save({ description: text })"
           />
         </div>

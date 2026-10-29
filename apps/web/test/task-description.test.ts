@@ -198,6 +198,8 @@ describe('description d\'une tâche', () => {
     )
     // Réappliquer la description écraserait celle du collègue sans la lire : on l'enregistre depuis l'éditeur.
     expect(alert?.querySelector('button')).toBeNull()
+    // La version d'OP s'affiche au-dessus du brouillon, pour les comparer.
+    expect(section(wrapper).find('.current').text()).toContain('Version d\'un collègue')
 
     fakeApi.on('PATCH', '/tasks/11', () => ({
       task: { ...stored, description: 'Ma version', lockVersion: 6 },
@@ -206,6 +208,8 @@ describe('description d\'une tâche', () => {
     await flushPromises()
 
     expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 5, description: 'Ma version' })
+    await writeDescription(wrapper, 'Encore')
+    expect(section(wrapper).find('.current').exists()).toBe(false)
   })
 
   it('garde une saisie plus récente quand OP refuse une modification précédente', async () => {

@@ -18,6 +18,11 @@ const props = defineProps<{
   pending?: boolean
   /** OP vient de refuser la modification : la description affichée est revenue à l'état réel. */
   rejected?: boolean
+  /**
+   * La description a changé dans OP pendant la saisie : en éditant, la version d'OP s'affiche
+   * au-dessus du brouillon, pour les comparer avant d'enregistrer.
+   */
+  showCurrent?: boolean
 }>()
 
 const emit = defineEmits<{ save: [description: string] }>()
@@ -101,6 +106,28 @@ watch(() => props.description, () => {
     </h3>
 
     <div v-if="editing" ref="editorBox" class="editor">
+      <details v-if="showCurrent" class="current" open>
+        <summary>Version actuelle dans OpenProject</summary>
+        <div class="preview expanded">
+          <MdPreview
+            v-if="description"
+            :id="`${id}-current`"
+            :model-value="description"
+            :language="MARKDOWN_LANGUAGE"
+            :theme="theme"
+            :sanitize="sanitizePreview"
+            no-highlight
+            no-mermaid
+            no-katex
+            no-echarts
+            no-img-zoom-in
+            :code-foldable="false"
+          />
+          <p v-else class="empty">
+            Aucune description.
+          </p>
+        </div>
+      </details>
       <MdEditor
         v-model="draft"
         :editor-id="`${id}-editor`"
@@ -205,6 +232,29 @@ h3 {
 
 .preview.rejected :deep(.md-editor-preview) {
   color: var(--p-app-error-color);
+}
+
+/* La version d'OP, à comparer au brouillon : à part de l'éditeur, repliable. */
+.current {
+  margin-bottom: var(--op-space-3);
+  padding: var(--op-space-2) var(--op-space-3);
+  border: 1px solid var(--p-app-line);
+  border-radius: var(--p-border-radius-md);
+}
+
+.current summary {
+  cursor: pointer;
+  font-size: var(--op-text-sm);
+  color: var(--p-text-muted-color);
+}
+
+.current .preview {
+  margin-top: var(--op-space-2);
+}
+
+.current .empty {
+  margin: 0;
+  color: var(--p-text-muted-color);
 }
 
 .actions {
