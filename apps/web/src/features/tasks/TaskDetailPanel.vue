@@ -416,6 +416,14 @@ const closedSubtasksText = computed(() => {
   border-left: 1px solid var(--p-app-line);
 }
 
+/*
+ * Collant, le détail forme son propre empilement : l'éditeur agrandi de la description n'y passe
+ * au-dessus de l'en-tête de l'arbre que si le détail lui-même y passe.
+ */
+.task-detail:has(.md-editor-fullscreen) {
+  z-index: 10;
+}
+
 .head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

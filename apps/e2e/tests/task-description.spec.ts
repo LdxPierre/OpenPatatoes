@@ -105,4 +105,23 @@ test.describe('description d\'une tâche', () => {
     await expect(description.locator('.cm-content')).toHaveCount(0)
     await expect(description).not.toContainText('brouillon')
   })
+
+  test('agrandit l\'éditeur par-dessus l\'arbre et son en-tête', async ({ page }) => {
+    const panel = await openTask(page)
+    const description = panel.getByRole('region', { name: 'Description' })
+    const head = page.locator('.tree-head')
+    await expect(head).toBeVisible()
+
+    await description.getByRole('button', { name: 'Modifier la description' }).click()
+    await description.getByRole('button', { name: 'Agrandir l\'éditeur' }).click()
+
+    const box = await head.boundingBox()
+    if (!box)
+      throw new Error('En-tête de l\'arbre absent')
+    const covered = await description.locator('.md-editor').evaluate(
+      (editor, { x, y }) => editor.contains(editor.ownerDocument.elementFromPoint(x, y)),
+      { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+    )
+    expect(covered).toBe(true)
+  })
 })
