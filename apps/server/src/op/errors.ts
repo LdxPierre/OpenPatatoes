@@ -37,6 +37,18 @@ export class OpRejectedError extends Error {
   }
 }
 
+/**
+ * OP refuse une écriture faite sur une version périmée (409) : la ressource a été modifiée
+ * depuis sa lecture, son `lockVersion` ne correspond plus.
+ */
+export class OpConflictError extends Error {
+  readonly _tag = 'OpConflict'
+
+  constructor() {
+    super('La ressource a été modifiée dans OpenProject depuis sa lecture')
+  }
+}
+
 /** OP est injoignable, trop lent ou répond par une erreur serveur. */
 export class OpUnavailableError extends Error {
   readonly _tag = 'OpUnavailable'
@@ -60,5 +72,6 @@ export type OpError
     | OpForbiddenError
     | OpNotFoundError
     | OpRejectedError
+    | OpConflictError
     | OpUnavailableError
     | OpInvalidResponseError

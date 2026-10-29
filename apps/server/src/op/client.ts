@@ -6,6 +6,7 @@ import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 import { hoursToIsoDuration } from './duration.js'
 import {
+  OpConflictError,
   OpForbiddenError,
   OpInvalidResponseError,
   OpNotFoundError,
@@ -46,7 +47,10 @@ export interface OpApi {
   listStatuses: () => ResultAsync<OpStatus[], OpError>
   /** Une tâche, durées converties en heures décimales. */
   getWorkPackage: (id: number) => ResultAsync<OpWorkPackageDetail, OpError>
-  /** Modifie les seuls champs présents et renvoie la tâche telle qu'OP l'a enregistrée. */
+  /**
+   * Modifie les seuls champs présents et renvoie la tâche telle qu'OP l'a enregistrée.
+   * Un `lockVersion` qui n'est plus celui de la tâche donne un conflit (409).
+   */
   updateWorkPackage: (id: number, changes: TaskChanges) => ResultAsync<OpWorkPackageDetail, OpError>
   /** Utilisateurs qu'OP accepte comme assignés de la tâche. */
   listAvailableAssignees: (workPackageId: number) => ResultAsync<OpUser[], OpError>
@@ -125,6 +129,8 @@ function errorForStatus(status: number): OpError {
     return new OpForbiddenError()
   if (status === 404)
     return new OpNotFoundError()
+  if (status === 409)
+    return new OpConflictError()
   if (status >= 500)
     return new OpUnavailableError(`statut HTTP ${status}`)
   return new OpInvalidResponseError(`statut HTTP ${status}`)

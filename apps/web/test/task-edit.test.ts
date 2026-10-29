@@ -226,6 +226,80 @@ describe('modification d\'une tâche', () => {
     expect(wrapper.find('aside .edit-error').exists()).toBe(false)
   })
 
+  it('recharge la tâche modifiée dans OP entre-temps, rappelle les valeurs saisies et les réapplique', async () => {
+    const wrapper = await openTask()
+    // Un autre a changé l'estimé et l'assigné dans OP depuis l'ouverture du détail.
+    const reloaded = {
+      ...stored,
+      estimatedHours: 18,
+      assignee: bruno,
+      lockVersion: 5,
+    }
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(409, 'op_conflict', {
+        error: 'op_conflict',
+        message: 'Cette tâche a été modifiée dans OpenProject depuis son chargement : la modification n\'a pas été enregistrée.',
+        task: reloaded,
+      })
+    })
+
+    await typeHours(wrapper, 'Estimé', '30')
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, estimatedHours: 30 })
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('18\u202Fh')
+    expect(hourButton(wrapper, 'Estimé').classes()).toContain('rejected')
+    expect(picker(wrapper, 'Assigné').text()).toBe('Bruno Petit')
+    expect(treeAssignee(wrapper, 'Parcours de connexion')).toBe('Bruno Petit')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe(
+      'Cette tâche a été modifiée dans OpenProject depuis son chargement, elle a été rechargée. Votre modification n\'a pas été enregistrée : Estimé : 30\u202Fh.',
+    )
+
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...reloaded, estimatedHours: 30, lockVersion: 6 },
+    }))
+    const reapply = wrapper.findAll('aside .edit-error button').find(button => button.text() === 'Réappliquer mes modifications')!
+    await reapply.trigger('click')
+    await flushPromises()
+
+    // Réappliquée sur la version relue, la valeur saisie ne touche pas à l'assigné changé entre-temps.
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 5, estimatedHours: 30 })
+    expect(hourButton(wrapper, 'Estimé').text()).toBe('30\u202Fh')
+    expect(picker(wrapper, 'Assigné').text()).toBe('Bruno Petit')
+    expect(wrapper.find('aside .edit-error').exists()).toBe(false)
+  })
+
+  it('relit la tâche après un conflit qui ne la joint pas, et rappelle la valeur saisie', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(409, 'op_conflict', { error: 'op_conflict', message: 'Conflit.' })
+    })
+    fakeApi.on('GET', '/tasks/11', () => ({
+      task: { ...stored, remainingHours: 2, lockVersion: 5 },
+    }))
+
+    await typeHours(wrapper, 'Restant', '')
+    await flushPromises()
+
+    expect(hourButton(wrapper, 'Restant').text()).toBe('2\u202Fh')
+    expect(wrapper.find('aside [role="alert"]').text()).toBe(
+      'Cette tâche a été modifiée dans OpenProject depuis son chargement, elle a été rechargée. Votre modification n\'a pas été enregistrée : Restant : vide.',
+    )
+  })
+
+  it('distingue une panne de l\'app d\'une indisponibilité d\'OP', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(500, 'unknown_error')
+    })
+
+    await typeHours(wrapper, 'Estimé', '30')
+    await flushPromises()
+
+    expect(wrapper.find('aside [role="alert"]').text()).toBe('L\'app n\'a pas pu modifier le temps estimé. Réessayez dans un instant.')
+    expect(wrapper.find('aside [role="alert"]').text()).not.toContain('OpenProject')
+  })
+
   it('affiche le refus d\'une modification même si une autre a été lancée depuis', async () => {
     const wrapper = await openTask()
     const first = deferred<unknown>()

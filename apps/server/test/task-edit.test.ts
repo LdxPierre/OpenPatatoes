@@ -369,6 +369,34 @@ describe('édition d\'une tâche', () => {
     })
   })
 
+  it('signale un conflit quand la tâche a été modifiée dans OP depuis sa lecture, avec la tâche relue', async () => {
+    // Un autre a modifié la tâche : la version 0 lue par l'interface est périmée.
+    op.touchWorkPackage(10)
+
+    const response = await patchTask(10, { lockVersion: 0, estimatedHours: 3 })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toMatchObject({
+      error: 'op_conflict',
+      message: 'Cette tâche a été modifiée dans OpenProject depuis son chargement : la modification n\'a pas été enregistrée.',
+      task: { id: 10, lockVersion: 1, estimatedHours: 8 },
+    })
+    expect(task).toMatchObject({ lockVersion: 1, estimatedTime: 'PT8H' })
+  })
+
+  it('signale le conflit même si la tâche ne peut pas être relue', async () => {
+    op.touchWorkPackage(10)
+    op.interceptNext({ method: 'GET', path: '/api/v3/work_packages/10', status: 503 })
+
+    const response = await patchTask(10, { lockVersion: 0, estimatedHours: 3 })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({
+      error: 'op_conflict',
+      message: 'Cette tâche a été modifiée dans OpenProject depuis son chargement : la modification n\'a pas été enregistrée.',
+    })
+  })
+
   it('restitue chaque message quand OP refuse plusieurs champs', async () => {
     op.interceptNext({
       method: 'PATCH',
@@ -588,6 +616,15 @@ describe('édition d\'une tâche', () => {
       })
       // Lire le formulaire ne modifie pas la tâche.
       expect(task.lockVersion).toBe(1)
+    })
+
+    it('signale un conflit si la tâche change entre sa lecture et celle du formulaire', async () => {
+      op.interceptNext({ method: 'POST', path: '/api/v3/work_packages/10/form', status: 409 })
+
+      const response = await getAllowedValues(10)
+
+      expect(response.statusCode).toBe(409)
+      expect(response.json()).toMatchObject({ error: 'op_conflict' })
     })
 
     it('ne propose aucune valeur pour un champ qu\'OP ne laisse pas modifier', async () => {

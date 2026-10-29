@@ -15,6 +15,10 @@ const props = defineProps<{
   messages: OpErrorMessages
   /** Une nouvelle tentative est en cours. */
   retrying?: boolean
+  /** Libellé du bouton qui réessaie. */
+  retryLabel?: string
+  /** Rien ne peut être réessayé : le bouton est retiré. */
+  noRetry?: boolean
 }>()
 
 const emit = defineEmits<{ retry: [] }>()
@@ -53,8 +57,8 @@ function enterNewToken() {
   <Alert variant="error">
     <AlertDescription>{{ text }}</AlertDescription>
   </Alert>
-  <Button v-if="recovery === 'retry'" variant="outline" :disabled="retrying" @click="emit('retry')">
-    Réessayer
+  <Button v-if="recovery === 'retry' && !noRetry" variant="outline" :disabled="retrying" @click="emit('retry')">
+    {{ retryLabel ?? 'Réessayer' }}
   </Button>
   <Button v-else-if="recovery === 'sign-in'" variant="outline" @click="signInAgain">
     Se connecter à nouveau
