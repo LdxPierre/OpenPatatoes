@@ -14,6 +14,7 @@ import { taskPath, visibleTaskRows } from './tasks'
  * Clavier : flèches haut et bas pour se déplacer, droite et gauche pour déplier et replier,
  * Espace pour basculer, Début et Fin pour aller aux extrémités. Entrée ou un clic ouvre le détail.
  * Filtré, l'arbre se déplie jusqu'à chaque résultat ; sans critère, il retrouve le dépliage d'avant.
+ * Tout déplier ou tout replier agit sur l'arbre affiché, filtré ou non.
  */
 const props = defineProps<{
   tasks: TaskNode[]
@@ -37,6 +38,11 @@ const expanded = computed(() => props.matchIds
   ? filterExpanded
   : baseExpanded)
 const rows = computed(() => visibleTaskRows(props.tasks, expanded.value))
+
+/** Tâches de l'arbre affiché qui ont des sous-tâches : celles qu'on peut déplier. */
+const expandableIds = computed(() => taskIdsWithChildren(props.tasks))
+const expandable = computed(() => expandableIds.value.length > 0)
+const allExpanded = computed(() => expandableIds.value.every(id => expanded.value.has(id)))
 
 /** Ligne active : la seule atteinte par Tab, et celle que l'on surligne. */
 const activeId = ref<number | null>(null)
@@ -109,14 +115,21 @@ function sameIds(a: Set<number>, b: Set<number>) {
   return a.size === b.size && [...a].every(id => b.has(id))
 }
 
+/** Nœuds dépliables de l'arbre filtré précédent : seuls les nouveaux se déplient à la relecture. */
+let filterExpandable = new Set<number>()
+
 watch(() => props.matchIds, (matchIds, previous) => {
   if (matchIds) {
     // Des données relues sans changer les résultats gardent le repli choisi par l'utilisateur ;
     // un ancêtre nouveau (tâche déplacée) se déplie quand même.
-    if (!previous || !sameIds(matchIds, previous))
+    const sameResults = previous != null && sameIds(matchIds, previous)
+    if (!sameResults)
       filterExpanded.clear()
-    for (const id of taskIdsWithChildren(props.tasks))
-      filterExpanded.add(id)
+    for (const id of expandableIds.value) {
+      if (!sameResults || !filterExpandable.has(id))
+        filterExpanded.add(id)
+    }
+    filterExpandable = new Set(expandableIds.value)
     return
   }
   if (!previous || activeId.value === null)
@@ -218,7 +231,27 @@ function focusActive() {
   focusRow(activeIndex.value)
 }
 
-defineExpose({ focusActive })
+/** Déplie tous les niveaux, ou replie tout s'ils le sont déjà. Tout replié, la ligne active passe sur sa racine. */
+function toggleAll() {
+  if (!allExpanded.value) {
+    for (const id of expandableIds.value)
+      expanded.value.add(id)
+    return
+  }
+  const root = activeId.value === null
+    ? undefined
+    : taskPath(props.tasks, activeId.value)?.[0]
+  if (root)
+    activeId.value = root.id
+  expanded.value.clear()
+}
+
+defineExpose({
+  focusActive,
+  expandable,
+  allExpanded,
+  toggleAll,
+})
 
 /** Titre complet au focus, seulement s'il est coupé. Au survol, l'attribut `title` suffit. */
 const revealedId = ref<number | null>(null)

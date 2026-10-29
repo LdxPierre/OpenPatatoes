@@ -6,6 +6,7 @@ import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { criteriaFromQuery, criteriaOptions, filterTaskTree, hasCriteria, knownCriteria, queryWithCriteria } from '@/features/tasks/task-filters'
 import TaskCreateDialog from '@/features/tasks/TaskCreateDialog.vue'
+import TaskExpandAllButton from '@/features/tasks/TaskExpandAllButton.vue'
 import TaskFilterBar from '@/features/tasks/TaskFilterBar.vue'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
 import TaskTree from '@/features/tasks/TaskTree.vue'
@@ -190,7 +191,14 @@ const taskErrorMessages: OpErrorMessages = {
           </p>
 
           <template v-else-if="tasks">
-            <TaskFilterBar ref="filterBar" v-model="criteria" :options="options" />
+            <div class="tree-toolbar">
+              <TaskFilterBar ref="filterBar" v-model="criteria" :options="options" class="filters" />
+              <TaskExpandAllButton
+                v-if="tree?.expandable"
+                :all-expanded="tree.allExpanded"
+                @toggle="tree.toggleAll()"
+              />
+            </div>
 
             <p v-if="noMatch" class="muted" role="status">
               Aucune tâche ne correspond à ces critères.
@@ -288,6 +296,19 @@ h1 {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--op-space-4);
+  min-width: 0;
+}
+
+/* Le bouton qui déplie ou replie tout reste à droite des filtres, même quand ils passent à la ligne. */
+.tree-toolbar {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--op-space-2);
+}
+
+.filters {
+  flex: 1;
   min-width: 0;
 }
 
