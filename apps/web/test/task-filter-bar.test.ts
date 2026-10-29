@@ -304,6 +304,52 @@ describe('filtres et recherche de l\'arbre', () => {
     expect(rowTitles(wrapper)).toEqual(['Contrat de maintenance 2027', 'Migration des comptes existants'])
   })
 
+  it('déplie ou replie tout l\'arbre filtré, puis retrouve le dépliage d\'avant sans critère', async () => {
+    const wrapper = await openProject()
+    const expandAll = () => wrapper.find('button[aria-label="Tout déplier"], button[aria-label="Tout replier"]')
+
+    await search(wrapper, 'migration')
+    // L'arbre filtré est déplié jusqu'au résultat : il n'y a plus qu'à tout replier.
+    expect(expandAll().attributes('aria-label')).toBe('Tout replier')
+    await expandAll().trigger('click')
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client'])
+    await expandAll().trigger('click')
+    expect(rowTitles(wrapper)).toEqual([
+      'Refonte du portail client',
+      'Parcours de connexion',
+      'Migration des comptes existants',
+    ])
+
+    await clearButton(wrapper)!.trigger('click')
+    await flushPromises()
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
+    expect(expandAll().attributes('aria-label')).toBe('Tout déplier')
+  })
+
+  it('masque le bouton quand aucune tâche ne correspond, ou que les résultats n\'ont pas de sous-tâches', async () => {
+    const wrapper = await openProject()
+    const expandAll = () => wrapper.find('button[aria-label="Tout déplier"], button[aria-label="Tout replier"]')
+
+    await search(wrapper, 'introuvable')
+    expect(expandAll().exists()).toBe(false)
+    await search(wrapper, 'contrat')
+    expect(expandAll().exists()).toBe(false)
+  })
+
+  it('replie aussi les ancêtres de la tâche ouverte, sans fermer son détail', async () => {
+    const wrapper = await openProject('/projets/1/taches/12')
+    await flushPromises()
+    // Les ancêtres de la tâche ouverte, dépliés pour la montrer, sont ici les seuls nœuds à déplier.
+    expect(rowTitles(wrapper)).toContain('Migration des comptes existants')
+
+    await wrapper.find('button[aria-label="Tout replier"]').trigger('click')
+
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
+    expect(wrapper.find('[role="treeitem"][tabindex="0"] .name').text()).toBe('Refonte du portail client')
+    expect(wrapper.find('aside').exists()).toBe(true)
+    expect(currentPath()).toBe('/projets/1/taches/12')
+  })
+
   it('place le curseur dans la recherche avec /, sauf pendant une saisie', async () => {
     const wrapper = await openProject()
 

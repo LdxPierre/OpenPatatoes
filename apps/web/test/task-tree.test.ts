@@ -54,6 +54,10 @@ function row(wrapper: Wrapper, subject: string) {
   return found
 }
 
+function expandAllButton(wrapper: Wrapper) {
+  return wrapper.find('button[aria-label="Tout déplier"], button[aria-label="Tout replier"]')
+}
+
 describe('arbre des tâches d\'un projet', () => {
   beforeEach(() => {
     fakeApi.signedIn()
@@ -158,6 +162,57 @@ describe('arbre des tâches d\'un projet', () => {
     await row(wrapper, 'Refonte du portail client').find('.toggle').trigger('click')
 
     expect(row(wrapper, 'Refonte du portail client').attributes('tabindex')).toBe('0')
+  })
+
+  it('déplie tous les niveaux puis replie tout avec un seul bouton', async () => {
+    const wrapper = await openProject()
+    expect(expandAllButton(wrapper).attributes('aria-label')).toBe('Tout déplier')
+    expect(expandAllButton(wrapper).attributes('title')).toBe('Tout déplier')
+
+    await expandAllButton(wrapper).trigger('click')
+    expect(rowTitles(wrapper)).toEqual([
+      'Refonte du portail client',
+      'Parcours de connexion',
+      'Migration des comptes existants',
+      'Espace documents',
+      'Contrat de maintenance 2027',
+    ])
+    expect(expandAllButton(wrapper).attributes('aria-label')).toBe('Tout replier')
+
+    await expandAllButton(wrapper).trigger('click')
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
+    expect(expandAllButton(wrapper).attributes('aria-label')).toBe('Tout déplier')
+  })
+
+  it('propose de tout déplier tant qu\'un nœud reste replié', async () => {
+    const wrapper = await openProject()
+
+    await row(wrapper, 'Refonte du portail client').find('.toggle').trigger('click')
+    expect(expandAllButton(wrapper).attributes('aria-label')).toBe('Tout déplier')
+
+    await expandAllButton(wrapper).trigger('click')
+    await row(wrapper, 'Parcours de connexion').find('.toggle').trigger('click')
+    expect(expandAllButton(wrapper).attributes('aria-label')).toBe('Tout déplier')
+  })
+
+  it('rend la main à la racine quand tout se replie', async () => {
+    const wrapper = await openProject()
+    await expandAllButton(wrapper).trigger('click')
+    await row(wrapper, 'Migration des comptes existants').trigger('focus')
+
+    await expandAllButton(wrapper).trigger('click')
+
+    expect(row(wrapper, 'Refonte du portail client').attributes('tabindex')).toBe('0')
+  })
+
+  it('masque le bouton quand aucune tâche n\'a de sous-tâches', async () => {
+    const wrapper = await openProject([
+      task(1, 'Seule'),
+      task(2, 'Autre'),
+    ])
+
+    expect(wrapper.find('[role="tree"]').exists()).toBe(true)
+    expect(expandAllButton(wrapper).exists()).toBe(false)
   })
 
   it('ne rend que les lignes à l\'écran pour un projet de plusieurs milliers de tâches', async () => {
