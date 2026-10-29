@@ -37,6 +37,7 @@ function detail(id: number, subject: string): TaskDetail {
     version: null,
     category: null,
     parent: null,
+    description: '',
   }
 }
 
@@ -284,5 +285,18 @@ describe('activité d\'une tâche', () => {
     await expectNavigatedTo('/projets/1/taches/11')
     expect((textarea(wrapper).element as HTMLTextAreaElement).value).toBe('Commentaire sur la 11')
     expect(wrapper.find('.composer [role="alert"]').text()).toContain('OpenProject ne répond pas')
+  })
+
+  it('garde le brouillon d\'un commentaire en passant par l\'onglet Détail', async () => {
+    const wrapper = await openApp('/projets/1/taches/11')
+    await openActivity(wrapper)
+    await textarea(wrapper).setValue('Brouillon')
+
+    await tab(wrapper, 'Détail').trigger('mousedown', { button: 0 })
+    await flushPromises()
+    expect(textarea(wrapper).isVisible()).toBe(false)
+    await openActivity(wrapper)
+
+    expect((textarea(wrapper).element as HTMLTextAreaElement).value).toBe('Brouillon')
   })
 })

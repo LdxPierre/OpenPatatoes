@@ -222,6 +222,21 @@ describe('description d\'une tâche', () => {
     expect(section(wrapper).find('.preview').text()).toContain('L\'utilisateur se connecte sans passer par OpenProject.')
     expect(fakeApi.calls.some(call => call.method === 'PATCH')).toBe(false)
   })
+
+  it('garde la saisie de la description en passant par l\'onglet Activité', async () => {
+    fakeApi.on('GET', '/tasks/11/activities', () => ({ activities: [] }))
+    const wrapper = await openTask()
+    await writeDescription(wrapper, 'Texte en cours')
+
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find(item => item.text() === name)!
+    // Reka active un onglet au clic gauche, sur l'appui du bouton.
+    await tab('Activité').trigger('mousedown', { button: 0 })
+    await flushPromises()
+    await tab('Détail').trigger('mousedown', { button: 0 })
+    await flushPromises()
+
+    expect(wrapper.getComponent(MdEditor).props('modelValue')).toBe('Texte en cours')
+  })
 })
 
 describe('assainissement de l\'aperçu', () => {
