@@ -2,7 +2,8 @@ import type { TaskDetail, TaskNode, TaskStatus } from '@openpatatoes/shared'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parseHours } from '@/features/tasks/format'
-import { withTreeFields } from '@/features/tasks/tasks'
+import { withParent, withTreeFields } from '@/features/tasks/tasks'
+import { router } from '@/router'
 import { ApiError } from '@/shared/api/api-fetch'
 import { fakeApi } from './support/fake-api'
 import { mountApp } from './support/mount-app'
@@ -427,6 +428,89 @@ describe('modification d\'une tâche', () => {
     expect(picker(wrapper, 'Type').text()).toBe('Anomalie')
     expect(picker(wrapper, 'Priorité').text()).toBe('Haute')
   })
+
+  it('propose pour parent les tâches du projet, hors la tâche et ses sous-tâches', async () => {
+    const wrapper = await openTask()
+    expect(picker(wrapper, 'Parent').text()).toBe('Refonte du portail client')
+    expect(wrapper.findComponent({ name: 'TaskParentPicker' }).findComponent({ name: 'TaskChoicePicker' }).props('choices')).toEqual([
+      { id: 10, name: 'Refonte du portail client' },
+      { id: 20, name: 'Contrat de maintenance 2027' },
+    ])
+
+    fakeApi.on('GET', '/tasks/10', () => ({
+      task: {
+        ...stored,
+        id: 10,
+        subject: 'Refonte du portail client',
+        parent: null,
+      },
+    }))
+    await router.push('/projets/1/taches/10')
+    await flushPromises()
+
+    expect(picker(wrapper, 'Parent').text()).toBe('Aucun parent')
+    expect(wrapper.findComponent({ name: 'TaskParentPicker' }).findComponent({ name: 'TaskChoicePicker' }).props('choices')).toEqual([
+      { id: 20, name: 'Contrat de maintenance 2027' },
+    ])
+  })
+
+  it('déplace la tâche sous son nouveau parent dans l\'arbre, avant la réponse d\'OP', async () => {
+    const wrapper = await openTask()
+    const answer = deferred<unknown>()
+    fakeApi.on('PATCH', '/tasks/11', () => answer.promise)
+    const contrat = { id: 20, subject: 'Contrat de maintenance 2027' }
+
+    wrapper.findComponent({ name: 'TaskParentPicker' }).vm.$emit('select', contrat)
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, parentId: 20 })
+    expect(picker(wrapper, 'Parent').text()).toBe('Contrat de maintenance 2027')
+    expect(picker(wrapper, 'Parent').classes()).toContain('pending')
+    expect(wrapper.find('aside .parent').text()).toContain('Contrat de maintenance 2027')
+    expect(treeRow(wrapper, 'Refonte du portail client').attributes('aria-expanded')).toBeUndefined()
+    expect(treeRow(wrapper, 'Contrat de maintenance 2027').attributes('aria-expanded')).toBe('true')
+    // La tâche ouverte reste visible : son nouveau parent est déplié.
+    expect(treeRow(wrapper, 'Parcours de connexion').attributes('aria-level')).toBe('2')
+
+    answer.resolve({
+      task: { ...stored, parent: contrat, lockVersion: 5 },
+    })
+    await flushPromises()
+    expect(picker(wrapper, 'Parent').classes()).not.toContain('pending')
+    expect(treeRow(wrapper, 'Contrat de maintenance 2027').attributes('aria-expanded')).toBeDefined()
+  })
+
+  it('fait de la tâche une racine', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...stored, parent: null, lockVersion: 5 },
+    }))
+
+    wrapper.findComponent({ name: 'TaskParentPicker' }).vm.$emit('select', null)
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 4, parentId: null })
+    expect(picker(wrapper, 'Parent').text()).toBe('Aucun parent')
+    expect(wrapper.find('aside .parent').exists()).toBe(false)
+    expect(treeRow(wrapper, 'Parcours de connexion').attributes('aria-level')).toBe('1')
+  })
+
+  it('revient au parent réel et affiche le refus du serveur pour un parent qui créerait un cycle', async () => {
+    const wrapper = await openTask()
+    const message = 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(422, 'task_parent_cycle', { error: 'task_parent_cycle', message, task: stored })
+    })
+
+    wrapper.findComponent({ name: 'TaskParentPicker' }).vm.$emit('select', { id: 20, subject: 'Contrat de maintenance 2027' })
+    await flushPromises()
+
+    expect(picker(wrapper, 'Parent').text()).toBe('Refonte du portail client')
+    expect(picker(wrapper, 'Parent').classes()).toContain('rejected')
+    expect(treeRow(wrapper, 'Contrat de maintenance 2027').attributes('aria-expanded')).toBeUndefined()
+    expect(wrapper.find('aside [role="alert"]').text()).toBe(message)
+    expect(wrapper.find('aside .edit-error').text()).not.toContain('Réessayer')
+  })
 })
 
 describe('saisie des heures', () => {
@@ -471,5 +555,110 @@ describe('état et assigné dans l\'arbre', () => {
       assignee: { ...camille },
     })).toBe(tree)
     expect(withTreeFields(tree, 99, { status: enCours, assignee: bruno })).toBe(tree)
+  })
+})
+
+describe('parent dans l\'arbre', () => {
+  const deep = [
+    node(10, 'A', [
+      node(11, 'A1', [
+        node(12, 'A1a'),
+      ]),
+      node(13, 'A2'),
+    ]),
+    node(20, 'B', [
+      node(19, 'B0'),
+      node(21, 'B1'),
+    ]),
+    node(30, 'C'),
+  ]
+
+  const ids = (roots: TaskNode[]): unknown[] => roots.map(task => task.children.length
+    ? [
+        task.id,
+        ids(task.children),
+      ]
+    : task.id)
+
+  it('range la tâche parmi ses nouveaux frères par identifiant, avec ses sous-tâches', () => {
+    expect(ids(withParent(deep, 11, 20))).toEqual([
+      [
+        10,
+        [13],
+      ],
+      [
+        20,
+        [
+          [
+            11,
+            [12],
+          ],
+          19,
+          21,
+        ],
+      ],
+      30,
+    ])
+  })
+
+  it('fait de la tâche une racine, sans parent ou avec un parent hors de l\'arbre', () => {
+    const expected = [
+      [
+        10,
+        [13],
+      ],
+      [
+        11,
+        [12],
+      ],
+      [
+        20,
+        [19, 21],
+      ],
+      30,
+    ]
+    expect(ids(withParent(deep, 11, null))).toEqual(expected)
+    expect(ids(withParent(deep, 11, 99))).toEqual(expected)
+  })
+
+  it('ne copie que les chemins touchés', () => {
+    const updated = withParent(deep, 12, 13)
+
+    expect(ids(updated)).toEqual([
+      [
+        10,
+        [
+          11,
+          [
+            13,
+            [12],
+          ],
+        ],
+      ],
+      [
+        20,
+        [19, 21],
+      ],
+      30,
+    ])
+    expect(updated[1]).toBe(deep[1])
+    expect(ids(deep)[0]).toEqual([
+      10,
+      [
+        [
+          11,
+          [12],
+        ],
+        13,
+      ],
+    ])
+  })
+
+  it('rend l\'arbre tel quel quand le parent ne change pas ou créerait un cycle', () => {
+    expect(withParent(deep, 11, 10)).toBe(deep)
+    expect(withParent(deep, 30, null)).toBe(deep)
+    expect(withParent(deep, 10, 12)).toBe(deep)
+    expect(withParent(deep, 10, 10)).toBe(deep)
+    expect(withParent(deep, 99, 10)).toBe(deep)
   })
 })

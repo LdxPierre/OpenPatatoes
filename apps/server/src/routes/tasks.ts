@@ -5,9 +5,10 @@ import type { OpApi } from '../op/client.js'
 import type { OpError } from '../op/errors.js'
 import type { OpWorkPackageDetail } from '../op/schemas.js'
 import { taskChangesSchema } from '@openpatatoes/shared'
-import { okAsync, ResultAsync } from 'neverthrow'
+import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
+import { wouldCreateCycle } from '../tasks/hierarchy.js'
 import { sendOpRouteError } from './op-errors.js'
 import { idParamsSchema } from './params.js'
 
@@ -27,6 +28,15 @@ function withClosedStatus(api: OpApi, workPackage: ResultAsync<OpWorkPackageDeta
       isClosed: statuses.find(status => status.id === task.status.id)?.isClosed ?? false,
     },
   }))
+}
+
+/** Parent d'une tâche ; `null` pour une tâche introuvable ou invisible avec le jeton : la remontée s'y arrête. */
+function parentIdOf(api: OpApi, id: number): ResultAsync<number | null, OpError> {
+  return api.getWorkPackage(id)
+    .map(task => task.parent?.id ?? null)
+    .orElse(error => error._tag === 'OpNotFound'
+      ? okAsync(null)
+      : errAsync(error))
 }
 
 /** Tâches OP lues et modifiées avec le jeton de l'utilisateur connecté. */
@@ -50,8 +60,10 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
     })
 
     /**
-     * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type ou la priorité ; renvoie la tâche telle qu'OP l'a enregistrée.
-     * Un refus d'OP renvoie aussi l'état réel de la tâche, pour que l'interface annule sa modification.
+     * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité ou le parent ;
+     * renvoie la tâche telle qu'OP l'a enregistrée. Un parent qui créerait un cycle est refusé avant
+     * d'écrire dans OP, quelle que soit l'interface. Un refus renvoie aussi l'état réel de la tâche,
+     * pour que l'interface annule sa modification.
      */
     app.patch('/tasks/:id', async (request, reply) => {
       const params = idParamsSchema.safeParse(request.params)
@@ -64,21 +76,36 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       if (api.isErr())
         return sendOpRouteError(reply, api.error)
 
+      /** Refus : avec l'état réel de la tâche, ou sans s'il n'a pas pu être relu. */
+      const reject = async (rejection: Omit<TaskRejectedResponse, 'task'>) => {
+        const current = await withClosedStatus(api.value, api.value.getWorkPackage(id))
+        return reply.code(422).send({
+          ...rejection,
+          ...(current.isOk() && { task: current.value }),
+        } satisfies TaskRejectedResponse)
+      }
+
+      const { parentId } = changes.data
+      if (parentId != null) {
+        const cycle = await wouldCreateCycle(id, parentId, ancestor => parentIdOf(api.value, ancestor))
+        if (cycle.isErr())
+          return sendOpRouteError(reply, cycle.error)
+        if (cycle.value) {
+          return reject({
+            error: 'task_parent_cycle',
+            message: parentId === id
+              ? 'Une tâche ne peut pas être son propre parent.'
+              : 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.',
+          })
+        }
+      }
+
       const updated = await withClosedStatus(api.value, api.value.updateWorkPackage(id, changes.data))
       if (updated.isOk())
         return { task: updated.value } satisfies TaskDetailResponse
       if (updated.error._tag !== 'OpRejected')
         return sendOpRouteError(reply, updated.error)
-
-      // Sans relecture possible, le refus reste signalé ; l'interface rechargera la tâche.
-      const current = await withClosedStatus(api.value, api.value.getWorkPackage(id))
-      if (current.isErr())
-        return sendOpRouteError(reply, updated.error)
-      return reply.code(422).send({
-        error: 'op_rejected',
-        message: updated.error.message,
-        task: current.value,
-      } satisfies TaskRejectedResponse)
+      return reject({ error: 'op_rejected', message: updated.error.message })
     })
 
     /** Utilisateurs à qui la tâche peut être assignée. */

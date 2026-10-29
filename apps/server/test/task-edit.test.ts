@@ -203,6 +203,103 @@ describe('édition d\'une tâche', () => {
     })
   })
 
+  describe('parent', () => {
+    /** Hiérarchie : 10 › 11 › 12, et 20 à part. */
+    beforeEach(() => {
+      op.addWorkPackage({
+        id: 11,
+        projectId: 1,
+        subject: 'Enfant',
+        parentId: 10,
+      })
+      op.addWorkPackage({
+        id: 12,
+        projectId: 1,
+        subject: 'Petit-enfant',
+        parentId: 11,
+      })
+      op.addWorkPackage({ id: 20, projectId: 1, subject: 'Autre racine' })
+    })
+
+    it('donne un nouveau parent à la tâche', async () => {
+      const response = await patchTask(11, { lockVersion: 0, parentId: 20 })
+
+      expect(response.statusCode).toBe(200)
+      expect(op.workPackage(11).parentId).toBe(20)
+      expect(response.json().task.parent).toEqual({ id: 20, subject: 'Autre racine' })
+    })
+
+    it('fait de la tâche une racine', async () => {
+      const response = await patchTask(12, { lockVersion: 0, parentId: null })
+
+      expect(response.statusCode).toBe(200)
+      expect(op.workPackage(12).parentId).toBeNull()
+      expect(response.json().task.parent).toBeNull()
+    })
+
+    it.each([
+      ['elle-même', 10, 'Une tâche ne peut pas être son propre parent.'],
+      ['sa sous-tâche', 11, 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
+      ['une sous-tâche de sa sous-tâche', 12, 'Ce parent est l\'une de ses sous-tâches : une tâche ne peut pas devenir la sous-tâche de ses propres sous-tâches.'],
+    ])('refuse pour parent %s, sans rien écrire dans OP', async (_case, parentId, message) => {
+      const response = await patchTask(10, { lockVersion: 0, parentId })
+
+      expect(response.statusCode).toBe(422)
+      expect(response.json()).toMatchObject({
+        error: 'task_parent_cycle',
+        message,
+        task: { id: 10, lockVersion: 0, parent: null },
+      })
+      expect(task.lockVersion).toBe(0)
+      expect(task.parentId).toBeNull()
+    })
+
+    it('accepte un parent pris dans une boucle déjà présente dans OP, sans boucler', async () => {
+      op.addWorkPackage({
+        id: 30,
+        projectId: 1,
+        subject: 'Boucle A',
+        parentId: 31,
+      })
+      op.addWorkPackage({
+        id: 31,
+        projectId: 1,
+        subject: 'Boucle B',
+        parentId: 30,
+      })
+
+      const response = await patchTask(10, { lockVersion: 0, parentId: 30 })
+
+      expect(response.statusCode).toBe(200)
+      expect(task.parentId).toBe(30)
+    })
+
+    it('laisse OP juger un parent introuvable', async () => {
+      const response = await patchTask(10, { lockVersion: 0, parentId: 99 })
+
+      expect(response.statusCode).toBe(422)
+      expect(response.json()).toMatchObject({
+        error: 'op_rejected',
+        message: 'OpenProject a refusé la modification : Parent does not exist.',
+      })
+    })
+
+    it('n\'écrit rien si un ancêtre du parent ne peut pas être lu', async () => {
+      op.interceptNext({ method: 'GET', path: '/api/v3/work_packages/11', status: 503 })
+
+      const response = await patchTask(20, { lockVersion: 0, parentId: 12 })
+
+      expect(response.statusCode).toBe(503)
+      expect(op.workPackage(20).lockVersion).toBe(0)
+    })
+
+    it('refuse un parent mis à 0', async () => {
+      const response = await patchTask(10, { lockVersion: 0, parentId: 0 })
+
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
   it('renvoie le refus d\'OP avec son message et l\'état réel complet de la tâche, sans rien modifier', async () => {
     const outsider = op.addUser({ name: 'Externe', token: 'tok-externe' })
 
