@@ -1,6 +1,6 @@
 import type { TaskChanges } from '@openpatatoes/shared'
 import type { OpError } from './errors.js'
-import type { OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail, OpWorkPackageForm } from './schemas.js'
+import type { OpActivity, OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail, OpWorkPackageForm } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -13,9 +13,12 @@ import {
   OpUnauthenticatedError,
   OpUnavailableError,
 } from './errors.js'
+import { sanitizeOpHtml } from './html.js'
 import {
+  opActivitySchema,
   opAvailableAssigneeSchema,
   opCollectionPageSchema,
+  opPrincipalSchema,
   opProjectSchema,
   opRejectionSchema,
   opStatusSchema,
@@ -52,6 +55,12 @@ export interface OpApi {
    * OP exige la version actuelle de la tâche : une autre donne un conflit (409).
    */
   getWorkPackageForm: (id: number, lockVersion: number) => ResultAsync<OpWorkPackageForm, OpError>
+  /** Historique de la tâche, du plus ancien au plus récent, commentaires assainis. */
+  listWorkPackageActivities: (workPackageId: number) => ResultAsync<OpActivity[], OpError>
+  /** Ajoute un commentaire markdown à la tâche ; renvoie l'activité créée, commentaire assaini. */
+  addWorkPackageComment: (workPackageId: number, markdown: string) => ResultAsync<OpActivity, OpError>
+  /** Nom d'un utilisateur, d'un utilisateur supprimé ou du système d'OP. */
+  getPrincipal: (id: number) => ResultAsync<OpUser, OpError>
 }
 
 /** Seule couche qui parle à l'API OP. Elle n'a pas de jeton propre : chaque appel passe par `withToken`. */
@@ -214,6 +223,11 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
         return fetchFrom(`${apiRoot}${path}?${params}`, [])
       }
 
+      const sanitized = (activity: OpActivity): OpActivity => ({
+        ...activity,
+        comment: activity.comment && sanitizeOpHtml(activity.comment, instanceUrl),
+      })
+
       return {
         getCurrentUser: () => get('/users/me', opUserSchema),
         listProjects: () => getAll('/projects', opProjectSchema),
@@ -238,6 +252,16 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
             .map(assignees => assignees.filter(assignee => assignee !== null)),
         // Sans autre champ que la version : le formulaire part de la tâche enregistrée, sans rien modifier.
         getWorkPackageForm: (id, lockVersion) => post(`/work_packages/${id}/form`, opWorkPackageFormSchema, { lockVersion }),
+        // OP trie l'historique par version : c'est l'ordre chronologique.
+        listWorkPackageActivities: workPackageId =>
+          getAll(`/work_packages/${workPackageId}/activities`, opActivitySchema)
+            .map(activities => activities.map(sanitized)),
+        addWorkPackageComment: (workPackageId, markdown) =>
+          post(`/work_packages/${workPackageId}/activities`, opActivitySchema, {
+            comment: { raw: markdown },
+          })
+            .map(sanitized),
+        getPrincipal: id => get(`/users/${id}`, opPrincipalSchema),
       }
     },
   }

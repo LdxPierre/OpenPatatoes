@@ -229,6 +229,63 @@ export const opWorkPackageFormSchema = z
 export type OpWorkPackageForm = z.output<typeof opWorkPackageFormSchema>
 
 /**
+ * Auteur d'une activité, lu à part : le lien d'une activité ne donne pas son nom.
+ * Ce peut être un utilisateur, un utilisateur supprimé ou le système d'OP.
+ */
+export const opPrincipalSchema = z
+  .object({
+    _type: z.string(),
+    id: z.number().int(),
+    name: z.string(),
+  })
+  .transform(({ id, name }) => ({ id, name }))
+
+/** Texte mis en forme par OP : la source (`raw`) et son rendu HTML. */
+const opFormattableSchema = z.object({
+  raw: z.string().nullish(),
+  html: z.string().nullish(),
+})
+
+/**
+ * Activité d'une tâche (`GET /work_packages/:id/activities`). Le commentaire est le HTML
+ * rendu par OP, pas encore assaini : le client le fait. Les modifications gardent leur phrase en texte brut.
+ * La première version d'une tâche est sa création.
+ */
+export const opActivitySchema = z
+  .object({
+    _type: z.enum(['Activity', 'Activity::Comment']),
+    id: z.number().int(),
+    version: z.number().int(),
+    comment: opFormattableSchema.nullish(),
+    details: z.array(opFormattableSchema).nullish(),
+    createdAt: z.iso.datetime({ offset: true }),
+    _links: z.object({
+      user: z.object({
+        href: z.string().nullable(),
+      }).optional(),
+    }),
+  })
+  .transform(({ id, version, comment, details, createdAt, _links }) => {
+    const href = _links.user?.href
+    // L'auteur est un utilisateur : un autre lien ne désignerait pas la bonne ressource.
+    const userId = href && /\/users\/\d+$/.test(href)
+      ? idFromHref(href)
+      : null
+    return {
+      id,
+      userId,
+      createdAt,
+      creation: version === 1,
+      comment: comment?.raw?.trim() && comment.html
+        ? comment.html
+        : null,
+      changes: (details ?? []).flatMap(detail => detail.raw?.trim() || []),
+    }
+  })
+
+export type OpActivity = z.output<typeof opActivitySchema>
+
+/**
  * Page d'une collection HAL ; `nextByOffset` n'est présent que s'il reste des pages.
  * Le type varie selon la ressource : `Collection`, mais `WorkPackageCollection` pour les tâches.
  */

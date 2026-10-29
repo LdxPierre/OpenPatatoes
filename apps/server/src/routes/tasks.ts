@@ -1,10 +1,10 @@
-import type { TaskAllowedValuesResponse, TaskAssigneesResponse, TaskDetail, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskActivitiesResponse, TaskActivity, TaskActivityResponse, TaskAllowedValuesResponse, TaskAssigneesResponse, TaskDetail, TaskDetailResponse, TaskRejectedResponse } from '@openpatatoes/shared'
 import type { FastifyPluginAsync } from 'fastify'
 import type { AppDependencies } from '../app.js'
 import type { OpApi } from '../op/client.js'
 import type { OpError } from '../op/errors.js'
-import type { OpWorkPackageDetail } from '../op/schemas.js'
-import { taskChangesSchema } from '@openpatatoes/shared'
+import type { OpActivity, OpWorkPackageDetail } from '../op/schemas.js'
+import { taskChangesSchema, taskCommentSchema } from '@openpatatoes/shared'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { currentUserId, requireSession } from '../auth/plugin.js'
 import { opApiForUser } from '../op/connections.js'
@@ -37,6 +37,30 @@ function parentIdOf(api: OpApi, id: number): ResultAsync<number | null, OpError>
     .orElse(error => error._tag === 'OpNotFound'
       ? okAsync(null)
       : errAsync(error))
+}
+
+/** Nom de l'auteur d'une activité. Un auteur illisible reste anonyme : il n'empêche pas de lire l'historique. */
+function authorOf(api: OpApi, userId: number | null): ResultAsync<OpNamedRef | null, never> {
+  if (userId === null)
+    return okAsync(null)
+  return api.getPrincipal(userId).map((user): OpNamedRef | null => user).orElse(() => okAsync(null))
+}
+
+function toTaskActivity({ userId: _, ...activity }: OpActivity, author: OpNamedRef | null): TaskActivity {
+  return { ...activity, author }
+}
+
+/** Complète les activités avec le nom de leurs auteurs : OP ne le donne pas avec l'activité. Chaque auteur n'est lu qu'une fois. */
+function withAuthors(api: OpApi, activities: OpActivity[]): ResultAsync<TaskActivity[], never> {
+  const userIds = [
+    ...new Set(activities.flatMap(activity => activity.userId ?? [])),
+  ]
+  return ResultAsync.combine(userIds.map(id => authorOf(api, id))).map((users) => {
+    const authors = new Map(userIds.map((id, index) => [id, users[index] ?? null]))
+    return activities.map(activity => toTaskActivity(activity, activity.userId === null
+      ? null
+      : authors.get(activity.userId) ?? null))
+  })
 }
 
 /** Tâches OP lues et modifiées avec le jeton de l'utilisateur connecté. */
@@ -136,6 +160,43 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       )
       return result.match(
         allowedValues => allowedValues satisfies TaskAllowedValuesResponse,
+        error => sendOpRouteError(reply, error),
+      )
+    })
+
+    /**
+     * Historique de la tâche, du plus ancien au plus récent : commentaires assainis et modifications.
+     * Une activité qui ne dit rien (ni commentaire, ni modification lisible, ni création) est omise.
+     */
+    app.get('/tasks/:id/activities', async (request, reply) => {
+      const params = idParamsSchema.safeParse(request.params)
+      if (!params.success)
+        return reply.code(400).send({ error: 'invalid_request' })
+
+      const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
+        api.listWorkPackageActivities(params.data.id)
+          .map(activities => activities.filter(activity => activity.comment !== null || activity.changes.length > 0 || activity.creation))
+          .andThen(activities => withAuthors(api, activities)),
+      )
+      return result.match(
+        activities => ({ activities }) satisfies TaskActivitiesResponse,
+        error => sendOpRouteError(reply, error),
+      )
+    })
+
+    /** Ajoute un commentaire markdown à la tâche, au nom de l'utilisateur dans OP. */
+    app.post('/tasks/:id/activities', async (request, reply) => {
+      const params = idParamsSchema.safeParse(request.params)
+      const body = taskCommentSchema.safeParse(request.body)
+      if (!params.success || !body.success)
+        return reply.code(400).send({ error: 'invalid_request' })
+
+      const result = await opApiForUser(deps, currentUserId(request)).andThen(api =>
+        api.addWorkPackageComment(params.data.id, body.data.comment)
+          .andThen(activity => authorOf(api, activity.userId).map(author => toTaskActivity(activity, author))),
+      )
+      return result.match(
+        activity => reply.code(201).send({ activity } satisfies TaskActivityResponse),
         error => sendOpRouteError(reply, error),
       )
     })

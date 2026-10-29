@@ -1,7 +1,7 @@
-import type { OpNamedRef, TaskDetail, TaskDetailResponse, TaskNode, TaskRef, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
+import type { OpNamedRef, TaskActivitiesResponse, TaskDetail, TaskDetailResponse, TaskNode, TaskRef, TaskRejectedResponse, TaskStatus, TaskTreeResponse } from '@openpatatoes/shared'
 import type { QueryClient } from '@tanstack/vue-query'
 import type { MaybeRefOrGetter } from 'vue'
-import { forEachTask, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
+import { forEachTask, taskActivitiesResponseSchema, taskActivityResponseSchema, taskAllowedValuesResponseSchema, taskAssigneesResponseSchema, taskDetailResponseSchema, taskRejectedResponseSchema, taskTreeResponseSchema } from '@openpatatoes/shared'
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, toValue } from 'vue'
 import { projectsQueryKey } from '@/features/projects/projects'
@@ -75,6 +75,60 @@ export function useTaskAllowedValuesQuery(taskId: MaybeRefOrGetter<number>, enab
     queryKey: computed(() => taskAllowedValuesQueryKey(toValue(taskId))),
     queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}/allowed-values`, { schema: taskAllowedValuesResponseSchema, signal }),
     enabled: () => toValue(enabled),
+  })
+}
+
+function taskActivitiesQueryKey(taskId: number) {
+  return [
+    ...taskDetailQueryKey(taskId),
+    'activities',
+  ]
+}
+
+/** Historique d'une tâche, du plus ancien au plus récent. */
+export function useTaskActivitiesQuery(taskId: MaybeRefOrGetter<number>) {
+  return useQuery({
+    queryKey: computed(() => taskActivitiesQueryKey(toValue(taskId))),
+    queryFn: ({ signal }) => apiFetch(`/tasks/${toValue(taskId)}/activities`, { schema: taskActivitiesResponseSchema, signal }),
+    select: data => data.activities,
+  })
+}
+
+export interface TaskCommentVariables {
+  taskId: number
+  /** Commentaire en markdown. */
+  comment: string
+}
+
+/**
+ * Ajoute un commentaire markdown à une tâche ; une fois enregistré par OP, il s'ajoute à la fin de l'historique.
+ * OP peut fondre le commentaire dans la dernière activité de l'utilisateur, si elle est récente :
+ * elle est alors remplacée, pas ajoutée une seconde fois.
+ */
+export function useTaskCommentMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, comment }: TaskCommentVariables) =>
+      apiFetch(`/tasks/${taskId}/activities`, {
+        method: 'POST',
+        body: { comment },
+        schema: taskActivityResponseSchema,
+      }),
+    onSuccess: ({ activity }, { taskId }) => {
+      queryClient.setQueryData<TaskActivitiesResponse>(
+        taskActivitiesQueryKey(taskId),
+        data => data && {
+          activities: data.activities.some(known => known.id === activity.id)
+            ? data.activities.map(known => known.id === activity.id
+                ? activity
+                : known)
+            : [
+                ...data.activities,
+                activity,
+              ],
+        },
+      )
+    },
   })
 }
 

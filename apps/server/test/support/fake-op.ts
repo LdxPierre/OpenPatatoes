@@ -95,7 +95,10 @@ export interface FakeActivity {
   id: number
   workPackageId: number
   userId: number | null
+  /** Commentaire markdown ; vide pour une activité sans commentaire. */
   comment: string
+  /** Modifications, une phrase par champ, comme OP les rédige (`Status changed from New to Closed`). */
+  details: string[]
   createdAt: string
 }
 
@@ -156,7 +159,7 @@ export interface FakeOp {
    * comportement normal (401, 403, 503, corps non conforme...). Usage unique.
    */
   interceptNext: (interception: Interception) => void
-  addActivity: (activity: Pick<FakeActivity, 'workPackageId' | 'comment'> & Partial<FakeActivity>) => FakeActivity
+  addActivity: (activity: Pick<FakeActivity, 'workPackageId'> & Partial<FakeActivity>) => FakeActivity
   /** Vide l'état entre deux tests. */
   reset: () => void
   close: () => Promise<void>
@@ -423,6 +426,13 @@ export async function startFakeOp(): Promise<FakeOp> {
 
   app.get('/api/v3/users/me', async request => userResource(currentUser(request)))
 
+  app.get<{ Params: { id: string } }>('/api/v3/users/:id', async (request, reply) => {
+    const user = state.users.find(candidate => candidate.id === Number(request.params.id))
+    if (!user)
+      return sendOpError(reply, 404)
+    return userResource(user)
+  })
+
   app.get<{ Querystring: CollectionQuery }>('/api/v3/statuses', async request =>
     paginatedCollection(Object.values(FAKE_STATUSES).map(statusResource), request.query, '/api/v3/statuses'))
 
@@ -609,16 +619,32 @@ export async function startFakeOp(): Promise<FakeOp> {
     }
   })
 
+  /**
+   * Comme OP 17, le lien vers l'auteur n'a pas de titre : son nom se lit à part. Le HTML
+   * du commentaire reprend le markdown sans l'échapper, comme si OP laissait passer du HTML
+   * dangereux. La version est le rang de l'activité dans l'historique de la tâche, 1 pour sa création.
+   */
   const activityResource = (activity: FakeActivity) => ({
-    _type: 'Activity::Comment',
+    _type: activity.comment
+      ? 'Activity::Comment'
+      : 'Activity',
     id: activity.id,
-    comment: { format: 'markdown', raw: activity.comment, html: `<p>${activity.comment}</p>` },
-    details: [],
+    version: state.activities.filter(candidate => candidate.workPackageId === activity.workPackageId).indexOf(activity) + 1,
+    comment: {
+      format: 'markdown',
+      raw: activity.comment,
+      html: activity.comment
+        ? `<p>${activity.comment}</p>`
+        : '',
+    },
+    details: activity.details.map(detail => ({ format: 'custom', raw: detail, html: `<p>${detail}</p>` })),
+    internal: false,
     createdAt: activity.createdAt,
+    updatedAt: activity.createdAt,
     _links: {
       self: { href: `/api/v3/activities/${activity.id}` },
       workPackage: { href: `/api/v3/work_packages/${activity.workPackageId}` },
-      user: userLink(activity.userId),
+      user: { href: `/api/v3/users/${activity.userId ?? 0}` },
     },
   })
 
@@ -626,6 +652,8 @@ export async function startFakeOp(): Promise<FakeOp> {
     const created: FakeActivity = {
       id: state.nextActivityId,
       userId: null,
+      comment: '',
+      details: [],
       createdAt: new Date().toISOString(),
       ...activity,
     }
