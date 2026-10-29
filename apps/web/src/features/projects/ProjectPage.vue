@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { useMediaQuery } from '@vueuse/core'
-import { computed, nextTick, useTemplateRef } from 'vue'
+import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import TaskCreateDialog from '@/features/tasks/TaskCreateDialog.vue'
 import { countTasks, useTaskTreeQuery } from '@/features/tasks/tasks'
 import TaskTree from '@/features/tasks/TaskTree.vue'
 import AppTopbar from '@/shared/components/AppTopbar.vue'
@@ -30,6 +31,20 @@ function openTask(taskId: number) {
     })
   }
 }
+
+/** Tâche qui vient d'être créée : son détail prend le focus à son ouverture. */
+const createdTaskId = shallowRef<number | null>(null)
+
+function openCreatedTask(taskId: number) {
+  createdTaskId.value = taskId
+  openTask(taskId)
+}
+
+// Revenir plus tard sur cette tâche ne lui redonne pas le focus.
+watch(() => props.taskId, (taskId) => {
+  if (taskId !== createdTaskId.value)
+    createdTaskId.value = null
+})
 
 /** Fermer le détail rend la main à l'arbre, sur la tâche qui était ouverte. */
 async function closeTask() {
@@ -94,6 +109,12 @@ const taskErrorMessages: OpErrorMessages = {
         <h1>{{ project.data.value.name }}</h1>
         <span class="identifier">{{ project.data.value.identifier }}</span>
         <span v-if="countText" class="count op-num">{{ countText }}</span>
+        <TaskCreateDialog
+          :project-id="id"
+          :project-name="project.data.value.name"
+          :tree="tasks.data.value"
+          @created="openCreatedTask"
+        />
       </div>
 
       <div class="workspace" :class="{ 'with-detail': taskId !== null }">
@@ -111,7 +132,7 @@ const taskErrorMessages: OpErrorMessages = {
           />
 
           <p v-else-if="tasks.data.value?.length === 0" class="muted" role="status">
-            Ce projet n'a encore aucune tâche. Les tâches créées dans OpenProject apparaîtront ici.
+            Ce projet n'a encore aucune tâche. Créez la première avec « Nouvelle tâche ».
           </p>
 
           <TaskTree
@@ -125,7 +146,12 @@ const taskErrorMessages: OpErrorMessages = {
           />
         </div>
 
-        <RouterView :tree="tasks.data.value" :covering="detailCovers" @close="closeTask" />
+        <RouterView
+          :tree="tasks.data.value"
+          :covering="detailCovers"
+          :focused="createdTaskId !== null && createdTaskId === taskId"
+          @close="closeTask"
+        />
       </div>
     </template>
   </main>
@@ -147,11 +173,11 @@ const taskErrorMessages: OpErrorMessages = {
 }
 
 .title-bar {
+  align-self: stretch;
   display: flex;
   align-items: baseline;
   gap: var(--op-space-3);
   min-width: 0;
-  max-width: 100%;
 }
 
 h1 {

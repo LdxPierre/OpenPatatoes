@@ -1,4 +1,4 @@
-import type { OpNamedRef, TaskAllowedValuesResponse, TaskDetail } from '@openpatatoes/shared'
+import type { OpNamedRef, ProjectType, TaskAllowedValuesResponse, TaskDetail } from '@openpatatoes/shared'
 import { z } from 'zod'
 import { isoDurationToHours } from './duration.js'
 import { sanitizeMarkdown } from './sanitize-markdown.js'
@@ -108,6 +108,18 @@ export const opStatusSchema = z
   .transform(({ id, name, isClosed }) => ({ id, name, isClosed }))
 
 export type OpStatus = z.output<typeof opStatusSchema>
+
+/** Type de tâche OP, actif dans un projet. */
+export const opTypeSchema = z
+  .object({
+    _type: z.literal('Type'),
+    id: z.number().int(),
+    name: z.string(),
+    isDefault: z.boolean(),
+  })
+  .transform(({ id, name, isDefault }) => ({ id, name, isDefault }) satisfies ProjectType)
+
+export type OpType = z.output<typeof opTypeSchema>
 
 /** Durée ISO 8601 d'OP convertie en heures décimales ; `null` (ou absente) si non renseignée. */
 const opDurationAsHoursSchema = z

@@ -29,6 +29,8 @@ const props = defineProps<{
   tree?: TaskNode[]
   /** Sur petit écran, le panneau recouvre l'arbre : il prend le focus, comme une fenêtre. */
   covering?: boolean
+  /** Le panneau prend le focus, comme après la création de la tâche. */
+  focused?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -52,20 +54,20 @@ watch(tab, (value) => {
 
 // Les champs et la liste des assignés arrêtent leur Échap : il ne ferme pas le détail.
 onKeyStroke('Escape', (event) => {
-  // Échap dans l'éditeur de la description ferait perdre la saisie.
-  if (!isFromMarkdownEditor(event))
+  // Échap dans l'éditeur de la description ferait perdre la saisie ; dans un dialogue, il ne ferme que lui.
+  if (!isFromMarkdownEditor(event) && !(event.target instanceof Element && event.target.closest('[role="dialog"]:not(.task-detail)')))
     emit('close')
 })
 
 const closeButton = useTemplateRef('closeButton')
 
 function takeFocus() {
-  if (props.covering)
+  if (props.covering || props.focused)
     (closeButton.value?.$el as HTMLElement | undefined)?.focus()
 }
 
 onMounted(takeFocus)
-watch(() => [props.taskId, props.covering], takeFocus, { flush: 'post' })
+watch(() => [props.taskId, props.covering, props.focused], takeFocus, { flush: 'post' })
 
 const errorMessages: OpErrorMessages = {
   forbidden: 'OpenProject refuse l\'accès à cette tâche avec votre jeton. Vérifiez vos droits sur son projet dans OpenProject.',

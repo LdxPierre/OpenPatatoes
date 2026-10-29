@@ -1,6 +1,6 @@
-import type { TaskChanges } from '@openpatatoes/shared'
+import type { NewTask, TaskChanges } from '@openpatatoes/shared'
 import type { OpError } from './errors.js'
-import type { OpActivity, OpProject, OpStatus, OpUser, OpWorkPackage, OpWorkPackageDetail, OpWorkPackageForm } from './schemas.js'
+import type { OpActivity, OpProject, OpStatus, OpType, OpUser, OpWorkPackage, OpWorkPackageDetail, OpWorkPackageForm } from './schemas.js'
 import { Buffer } from 'node:buffer'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -23,6 +23,7 @@ import {
   opProjectSchema,
   opRejectionSchema,
   opStatusSchema,
+  opTypeSchema,
   opUserSchema,
   opWorkPackageDetailSchema,
   opWorkPackageFormSchema,
@@ -43,6 +44,10 @@ export interface OpApi {
   getProject: (id: number) => ResultAsync<OpProject, OpError>
   /** Toutes les tâches du projet, fermées comprises, toutes pages confondues, triées par identifiant. */
   listProjectWorkPackages: (projectId: number) => ResultAsync<OpWorkPackage[], OpError>
+  /** Types de tâche actifs dans le projet, dans l'ordre d'OP. */
+  listProjectTypes: (projectId: number) => ResultAsync<OpType[], OpError>
+  /** Crée une tâche dans le projet ; les champs absents prennent les valeurs par défaut d'OP. */
+  createWorkPackage: (projectId: number, task: NewTask) => ResultAsync<OpWorkPackageDetail, OpError>
   /** Tous les statuts de l'instance, avec leur caractère fermé. */
   listStatuses: () => ResultAsync<OpStatus[], OpError>
   /** Une tâche, durées converties en heures décimales. */
@@ -119,6 +124,19 @@ function workPackagePatch({ lockVersion, estimatedHours, remainingHours, assigne
     ...(Object.keys(links).length > 0 && {
       _links: links,
     }),
+  }
+}
+
+/** Corps de `POST /projects/:id/work_packages` : type et parent en liens HAL. Sans parent, la tâche est une racine. */
+function workPackageCreation({ typeId, subject, parentId }: NewTask) {
+  return {
+    subject,
+    _links: {
+      type: { href: `/api/v3/types/${typeId}` },
+      ...(parentId !== null && {
+        parent: { href: `/api/v3/work_packages/${parentId}` },
+      }),
+    },
   }
 }
 
@@ -249,6 +267,9 @@ export function createOpClient({ baseUrl }: OpClientOptions): OpClient {
               ]),
             },
           }),
+        listProjectTypes: projectId => getAll(`/projects/${projectId}/types`, opTypeSchema),
+        createWorkPackage: (projectId, task) =>
+          post(`/projects/${projectId}/work_packages`, opWorkPackageDetailSchema, workPackageCreation(task)),
         listStatuses: () => getAll('/statuses', opStatusSchema),
         getWorkPackage: id => get(`/work_packages/${id}`, opWorkPackageDetailSchema),
         updateWorkPackage: (id, changes) =>
