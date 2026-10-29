@@ -31,4 +31,4 @@ Faites relire le diff de la branche avant d'ouvrir la PR. Corrigez ce que la rel
 
 ## 5. Ouvrir la PR
 
-Si le travail porte sur une issue, écrivez `Closes #<numéro>` dans la description de la PR, une ligne par issue. GitHub ferme alors l'issue au merge. Il ne reconnaît que ses mots-clés anglais (`Closes`, `Fixes`, `Resolves`), et pas un numéro cité dans le titre.
+Si le travail porte sur une issue, écrivez `Closes #<numéro>` dans la description de la PR, une ligne par issue. GitHub ferme alors l'issue au merge. Il ne reconnaît que ses mots-clés anglais, comme `Closes`, `Fixes` ou `Resolves`, et pas un numéro cité dans le titre.
