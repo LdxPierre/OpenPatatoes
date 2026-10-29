@@ -1,7 +1,9 @@
-import type { TaskNode } from '@openpatatoes/shared'
+import type { TaskNode, TaskTreeResponse } from '@openpatatoes/shared'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { withParent, withTreeFields } from '@/features/tasks/tasks'
 import { router } from '@/router'
+import { queryClient } from '@/shared/query-client'
 import { fakeApi } from './support/fake-api'
 import { currentPath, mountApp } from './support/mount-app'
 
@@ -256,6 +258,50 @@ describe('filtres et recherche de l\'arbre', () => {
     expect(filterButton(wrapper, 'Parent').text()).toBe('Parent')
     expect(rowTitles(wrapper)).toEqual(['Refonte du portail client', 'Contrat de maintenance 2027'])
     expect(count(wrapper)).toBe('5 tâches')
+    expect(currentPath()).toBe('/projets/1')
+  })
+
+  it('garde un critère choisi quand une modification lui retire ses dernières tâches', async () => {
+    const wrapper = await openProject('/projets/1?status=7&q=migration')
+    expect(rowTitles(wrapper)).toContain('Migration des comptes existants')
+
+    // Les tâches « En cours » passent à « Fermé », comme après des modifications dans le détail.
+    queryClient.setQueryData<TaskTreeResponse>(['projects', 1, 'tasks'], data => data && {
+      ...data,
+      tasks: withTreeFields(
+        withTreeFields(data.tasks, 12, {
+          status: ferme,
+          type: { id: 1, name: 'Tâche' },
+          assignee: moi,
+        }),
+        10,
+        {
+          status: ferme,
+          type: { id: 1, name: 'Tâche' },
+          assignee: null,
+        },
+      ),
+    })
+    await flushPromises()
+
+    expect(filterButton(wrapper, 'Statut').text()).toBe('Statut · 1')
+    expect(wrapper.text()).toContain('Aucune tâche ne correspond à ces critères.')
+    expect(currentPath()).toBe('/projets/1?status=7&q=migration')
+  })
+
+  it('garde le repli choisi quand les résultats ne changent pas, et déplie un nouvel ancêtre', async () => {
+    const wrapper = await openProject('/projets/1?q=migration')
+    await wrapper.find('[role="treeitem"] .toggle').trigger('click')
+    expect(rowTitles(wrapper)).toEqual(['Refonte du portail client'])
+
+    // Même résultat, sous un autre parent, comme après un changement de parent dans le détail.
+    queryClient.setQueryData<TaskTreeResponse>(['projects', 1, 'tasks'], data => data && {
+      ...data,
+      tasks: withParent(data.tasks, 12, 20),
+    })
+    await flushPromises()
+
+    expect(rowTitles(wrapper)).toEqual(['Contrat de maintenance 2027', 'Migration des comptes existants'])
   })
 
   it('place le curseur dans la recherche avec /, sauf pendant une saisie', async () => {

@@ -110,11 +110,11 @@ function sameIds(a: Set<number>, b: Set<number>) {
 }
 
 watch(() => props.matchIds, (matchIds, previous) => {
-  // Des données relues sans changer les résultats gardent le dépliage de l'utilisateur.
-  if (matchIds && previous && sameIds(matchIds, previous))
-    return
   if (matchIds) {
-    filterExpanded.clear()
+    // Des données relues sans changer les résultats gardent le repli choisi par l'utilisateur ;
+    // un ancêtre nouveau (tâche déplacée) se déplie quand même.
+    if (!previous || !sameIds(matchIds, previous))
+      filterExpanded.clear()
     for (const id of taskIdsWithChildren(props.tasks))
       filterExpanded.add(id)
     return

@@ -60,18 +60,28 @@ const currentUserId = computed(() => taskTree.data.value?.currentUserId ?? null)
 
 const options = computed(() => criteriaOptions(tasks.value ?? [], currentUserId.value))
 
-/**
- * Critères de l'arbre, gardés dans l'adresse sans remplir l'historique. Une valeur que les filtres
- * ne proposent pas est ignorée ; elle quitte l'adresse au prochain changement de critères.
- */
+/** Critères de l'arbre, gardés dans l'adresse sans remplir l'historique. */
 const criteria = computed({
-  get: () => knownCriteria(criteriaFromQuery(route.query), options.value),
+  get: () => criteriaFromQuery(route.query),
   set: (next: TaskCriteria) => {
     router.replace({
       query: queryWithCriteria(route.query, next),
     })
   },
 })
+
+/**
+ * À la lecture de l'arbre, une valeur de l'adresse que les filtres ne proposent pas (lien ancien,
+ * tâche supprimée) en est retirée. Ensuite, un critère choisi reste actif même si une modification
+ * lui retire ses dernières tâches.
+ */
+watch(tasks, (loaded, previous) => {
+  if (!loaded || previous)
+    return
+  const known = knownCriteria(criteria.value, options.value)
+  if (JSON.stringify(known) !== JSON.stringify(criteria.value))
+    criteria.value = known
+}, { immediate: true })
 
 /** Arbre réduit aux critères ; `null` sans critère. */
 const filtered = computed(() => tasks.value && hasCriteria(criteria.value)
