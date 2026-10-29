@@ -28,3 +28,7 @@ Lancez depuis la racine `pnpm lint:fix` (lint et formatage), puis `pnpm lint`, `
 ## 4. Faire relire
 
 Faites relire le diff de la branche avant d'ouvrir la PR. Corrigez ce que la relecture remonte, puis reprenez l'étape 3. L'étape est terminée quand la relecture ne remonte plus rien de bloquant.
+
+## 5. Ouvrir la PR
+
+Si le travail porte sur une issue, écrivez `Closes #<numéro>` dans la description de la PR, une ligne par issue. GitHub ferme alors l'issue au merge. Il ne reconnaît que ses mots-clés anglais, comme `Closes`, `Fixes` ou `Resolves`, et pas un numéro cité dans le titre.
