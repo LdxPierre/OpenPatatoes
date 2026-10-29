@@ -87,7 +87,8 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
      * Modifie le temps estimé, le temps restant, l'assigné, l'état, le type, la priorité, le parent ou la description ;
      * renvoie la tâche telle qu'OP l'a enregistrée. Un parent qui créerait un cycle est refusé avant
      * d'écrire dans OP, quelle que soit l'interface. Un refus renvoie aussi l'état réel de la tâche,
-     * pour que l'interface annule sa modification.
+     * pour que l'interface annule sa modification. Une tâche modifiée dans OP depuis sa lecture
+     * (`lockVersion` périmé) donne un conflit (409), avec la tâche relue.
      */
     app.patch('/tasks/:id', async (request, reply) => {
       const params = idParamsSchema.safeParse(request.params)
@@ -101,9 +102,9 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
         return sendOpRouteError(reply, api.error)
 
       /** Refus : avec l'état réel de la tâche, ou sans s'il n'a pas pu être relu. */
-      const reject = async (rejection: Omit<TaskRejectedResponse, 'task'>) => {
+      const reject = async (rejection: Omit<TaskRejectedResponse, 'task'>, status = 422) => {
         const current = await withClosedStatus(api.value, api.value.getWorkPackage(id))
-        return reply.code(422).send({
+        return reply.code(status).send({
           ...rejection,
           ...(current.isOk() && { task: current.value }),
         } satisfies TaskRejectedResponse)
@@ -127,6 +128,12 @@ export function taskRoutes(deps: AppDependencies): FastifyPluginAsync {
       const updated = await withClosedStatus(api.value, api.value.updateWorkPackage(id, changes.data))
       if (updated.isOk())
         return { task: updated.value } satisfies TaskDetailResponse
+      if (updated.error._tag === 'OpConflict') {
+        return reject({
+          error: 'op_conflict',
+          message: 'Cette tâche a été modifiée dans OpenProject depuis son chargement : la modification n\'a pas été enregistrée.',
+        }, 409)
+      }
       if (updated.error._tag !== 'OpRejected')
         return sendOpRouteError(reply, updated.error)
       return reject({ error: 'op_rejected', message: updated.error.message })

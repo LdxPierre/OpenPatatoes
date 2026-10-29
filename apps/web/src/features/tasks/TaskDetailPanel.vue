@@ -4,6 +4,7 @@ import type { TaskEdit, TaskEditVariables } from './tasks'
 import type { OpErrorMessages } from '@/shared/api/op-error'
 import { onKeyStroke } from '@vueuse/core'
 import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { ApiError } from '@/shared/api/api-fetch'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import StatusBadge from '@/shared/components/StatusBadge.vue'
 import { Button } from '@/shared/components/ui/button'
@@ -117,9 +118,80 @@ const fieldNames: Record<keyof TaskEdit, string> = {
   description: 'la description',
 }
 
+/** Valeur saisie, telle que le message d'un conflit la rappelle : « Estimé : 3 h ». */
+function editedValue(edit: TaskEdit, field: Exclude<keyof TaskEdit, 'description'>) {
+  switch (field) {
+    case 'estimatedHours':
+    case 'remainingHours': {
+      const label = field === 'estimatedHours'
+        ? 'Estimé'
+        : 'Restant'
+      const hours = edit[field]
+      return `${label} : ${hours == null
+        ? 'vide'
+        : formatHours(hours)}`
+    }
+    case 'assignee':
+      return `Assigné : ${edit.assignee?.name ?? 'personne'}`
+    case 'status':
+      return `État : ${edit.status?.name}`
+    case 'type':
+      return `Type : ${edit.type?.name}`
+    case 'priority':
+      return `Priorité : ${edit.priority?.name}`
+    case 'parent':
+      return `Parent : ${edit.parent?.subject ?? 'aucun'}`
+  }
+}
+
+/** La tâche a changé dans OP depuis sa lecture : la modification n'est pas partie, la tâche a été relue. */
+const conflict = computed(() => failure.value?.error instanceof ApiError && failure.value.error.code === 'op_conflict')
+
+/**
+ * Modification à réappliquer après un conflit, sur la tâche relue. La description n'y est pas :
+ * l'éditeur l'a gardée, pour la relire face à celle d'OP plutôt que de l'écraser à l'aveugle.
+ */
+const reapplicable = computed<TaskEdit>(() => {
+  const { description: _, ...edit } = failure.value?.variables.edit ?? {}
+  return edit
+})
+
+function conflictMessage(edit: TaskEdit) {
+  const values = (Object.keys(edit) as (keyof TaskEdit)[])
+    .filter(field => field !== 'description')
+    .map(field => editedValue(edit, field))
+  const unsaved = values.length === 0
+    ? ''
+    : values.length === 1
+      ? ` Votre modification n'a pas été enregistrée : ${values[0]}.`
+      : ` Vos modifications n'ont pas été enregistrées : ${values.join(', ')}.`
+  const description = edit.description === undefined
+    ? ''
+    : ' Votre description est restée dans l\'éditeur : relisez-la, puis enregistrez-la à nouveau.'
+  return `Cette tâche a été modifiée dans OpenProject depuis son chargement, elle a été rechargée.${unsaved}${description}`
+}
+
+/** Après un conflit, le bouton réapplique les valeurs saisies ; sans autre valeur que la description, il n'y en a pas. */
+const retryLabel = computed(() => conflict.value
+  ? 'Réappliquer mes modifications'
+  : undefined)
+const noRetry = computed(() => conflict.value && Object.keys(reapplicable.value).length === 0)
+
+function retryFailure() {
+  if (!failure.value)
+    return
+  const { variables } = failure.value
+  mutate(conflict.value
+    ? { ...variables, edit: reapplicable.value }
+    : variables)
+}
+
 const editErrorMessages = computed<OpErrorMessages>(() => {
   const what = failedFields.value.map(field => fieldNames[field]).join(' et ')
   return {
+    conflict: failure.value
+      ? conflictMessage(failure.value.variables.edit)
+      : undefined,
     // Le message d'un refus vient d'OP, ou du serveur pour un parent qui créerait un cycle : il nomme le champ en cause.
     fallback: rejection.value?.message ?? `L'app n'a pas pu modifier ${what}. Réessayez dans un instant.`,
     forbidden: `OpenProject ne vous permet pas de modifier ${what} de cette tâche. Demandez ce droit à un administrateur du projet dans OpenProject.`,
@@ -352,7 +424,9 @@ const closedSubtasksText = computed(() => {
               <OpErrorAlert
                 :error="failure.error"
                 :messages="editErrorMessages"
-                @retry="mutate(failure.variables)"
+                :retry-label="retryLabel"
+                :no-retry="noRetry"
+                @retry="retryFailure"
               />
             </div>
             <p class="sr-only" role="status">
@@ -394,7 +468,9 @@ const closedSubtasksText = computed(() => {
             <OpErrorAlert
               :error="failure.error"
               :messages="editErrorMessages"
-              @retry="mutate(failure.variables)"
+              :retry-label="retryLabel"
+              :no-retry="noRetry"
+              @retry="retryFailure"
             />
           </div>
           <TaskDescription

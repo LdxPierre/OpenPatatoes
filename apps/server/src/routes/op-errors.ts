@@ -24,6 +24,11 @@ export function sendOpRouteError(reply: FastifyReply, error: OpRouteError) {
     case 'OpRejected':
       // Le message d'OP dit quelle valeur pose problème : l'utilisateur peut corriger sa saisie.
       return reply.code(422).send({ error: 'op_rejected', message: error.message })
+    case 'OpConflict':
+      return reply.code(409).send({
+        error: 'op_conflict',
+        message: 'Cette ressource a été modifiée dans OpenProject depuis sa lecture.',
+      })
     case 'OpUnavailable':
       return reply
         .code(503)

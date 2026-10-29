@@ -177,6 +177,37 @@ describe('description d\'une tâche', () => {
     expect(wrapper.find('aside .hours + .edit-error').exists()).toBe(false)
   })
 
+  it('garde la description saisie dans l\'éditeur quand la tâche a été modifiée dans OP entre-temps', async () => {
+    const wrapper = await openTask()
+    fakeApi.on('PATCH', '/tasks/11', () => {
+      throw new ApiError(409, 'op_conflict', {
+        error: 'op_conflict',
+        message: 'Conflit.',
+        task: { ...stored, description: 'Version d\'un collègue', lockVersion: 5 },
+      })
+    })
+
+    await writeDescription(wrapper, 'Ma version')
+    await button(wrapper, 'Enregistrer la description').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.getComponent(MdEditor).props('modelValue')).toBe('Ma version')
+    const alert = section(wrapper).element.parentElement?.querySelector('.edit-error')
+    expect(alert?.querySelector('[role="alert"]')?.textContent).toBe(
+      'Cette tâche a été modifiée dans OpenProject depuis son chargement, elle a été rechargée. Votre description est restée dans l\'éditeur : relisez-la, puis enregistrez-la à nouveau.',
+    )
+    // Réappliquer la description écraserait celle du collègue sans la lire : on l'enregistre depuis l'éditeur.
+    expect(alert?.querySelector('button')).toBeNull()
+
+    fakeApi.on('PATCH', '/tasks/11', () => ({
+      task: { ...stored, description: 'Ma version', lockVersion: 6 },
+    }))
+    await button(wrapper, 'Enregistrer la description').trigger('click')
+    await flushPromises()
+
+    expect(fakeApi.calls.at(-1)?.body).toEqual({ lockVersion: 5, description: 'Ma version' })
+  })
+
   it('garde une saisie plus récente quand OP refuse une modification précédente', async () => {
     const wrapper = await openTask()
     let refuse: () => void = () => {}

@@ -139,14 +139,15 @@ export const taskChangesSchema = z
 export type TaskChanges = z.infer<typeof taskChangesSchema>
 
 /**
- * Réponse 422 de `PATCH /api/tasks/:id` quand la modification est refusée : par OP
- * (`op_rejected`, `message` reprend celui d'OP) ou par l'app, avant OP, pour un parent
- * qui créerait un cycle (`task_parent_cycle`). `task` est l'état réel de la tâche, pour
- * annuler l'affichage optimiste ; il manque si la tâche n'a pas pu être relue. Le code
- * `op_token_invalid` partage ce statut : c'est `error` qui distingue les cas.
+ * Réponse de `PATCH /api/tasks/:id` quand la modification n'est pas enregistrée. En 422, elle est
+ * refusée par OP (`op_rejected`, `message` reprend celui d'OP) ou par l'app, avant OP, pour un parent
+ * qui créerait un cycle (`task_parent_cycle`). En 409 (`op_conflict`), la tâche a été modifiée dans OP
+ * depuis sa lecture : le `lockVersion` envoyé est périmé. `task` est l'état réel de la tâche, pour
+ * annuler l'affichage optimiste ; il manque si la tâche n'a pas pu être relue. Les codes
+ * `op_token_invalid` et `op_not_connected` partagent ces statuts : c'est `error` qui distingue les cas.
  */
 export const taskRejectedResponseSchema = z.object({
-  error: z.enum(['op_rejected', 'task_parent_cycle']),
+  error: z.enum(['op_rejected', 'op_conflict', 'task_parent_cycle']),
   message: z.string(),
   task: taskDetailSchema.optional(),
 })

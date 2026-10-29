@@ -224,6 +224,57 @@ test.describe('modification d\'une tâche', () => {
       await expect(page.getByRole('button', { name: 'Réessayer' })).toHaveCount(0)
     })
   })
+
+  test.describe('quand la tâche a été modifiée dans OP depuis son ouverture', () => {
+    const bruno = { username: 'bruno', password: 'mot-de-passe-bruno' }
+    test.use({
+      scenario: {
+        ...scenario,
+        accounts: [
+          ...scenario.accounts!,
+          { ...bruno, opToken: 'jeton-bruno' },
+        ],
+      },
+    })
+
+    test('recharge la tâche, rappelle la valeur saisie et la réapplique', async ({ page, browser }) => {
+      const panel = await openTask(page)
+      await expect(panel.getByRole('button', { name: /^Estimé : 8/ })).toBeVisible()
+
+      // Pendant ce temps, Bruno change l'estimé de la même tâche.
+      const brunoContext = await browser.newContext()
+      const brunoPage = await brunoContext.newPage()
+      await signIn(brunoPage, bruno)
+      await expect(brunoPage.getByRole('heading', { name: 'Projets' })).toBeVisible()
+      await brunoPage.goto('/projets/1/taches/10')
+      const brunoPanel = brunoPage.getByRole('complementary')
+      await brunoPanel.getByRole('button', { name: /^Estimé : 8/ }).click()
+      await brunoPanel.getByRole('textbox', { name: 'Estimé' }).fill('10')
+      const brunoSaved = brunoPage.waitForResponse(response => response.request().method() === 'PATCH')
+      await brunoPage.keyboard.press('Enter')
+      expect((await brunoSaved).status()).toBe(200)
+      await brunoContext.close()
+
+      await panel.getByRole('button', { name: /^Restant : 6/ }).click()
+      await panel.getByRole('textbox', { name: 'Restant' }).fill('2')
+      await page.keyboard.press('Enter')
+
+      await expect(page.getByRole('alert')).toHaveText(
+        'Cette tâche a été modifiée dans OpenProject depuis son chargement, elle a été rechargée. Votre modification n\'a pas été enregistrée : Restant : 2\u202Fh.',
+      )
+      await expect(panel.getByRole('button', { name: /^Estimé : 10/ })).toBeVisible()
+      await expect(panel.getByRole('button', { name: /^Restant : 6/ })).toBeVisible()
+
+      await panel.getByRole('button', { name: 'Réappliquer mes modifications' }).click()
+      await expect(panel.getByRole('button', { name: /^Restant : 2/ })).toBeVisible()
+      await expect(page.getByRole('alert')).toHaveCount(0)
+
+      // OP a gardé l'estimé de Bruno et le restant d'Alice.
+      await page.reload()
+      await expect(panel.getByRole('button', { name: /^Estimé : 10/ })).toBeVisible()
+      await expect(panel.getByRole('button', { name: /^Restant : 2/ })).toBeVisible()
+    })
+  })
 })
 
 test.describe('changement de parent', () => {

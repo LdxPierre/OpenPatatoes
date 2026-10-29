@@ -10,6 +10,8 @@ export interface OpErrorMessages {
   forbidden?: string
   /** OP ne trouve pas la ressource, ou la masque à ce jeton. */
   notFound?: string
+  /** La ressource a été modifiée dans OP depuis sa lecture. */
+  conflict?: string
 }
 
 /** Ce que l'utilisateur peut faire après l'erreur, à part lire le message. */
@@ -37,6 +39,9 @@ export function opErrorText(error: Error, messages: OpErrorMessages) {
       return messages.forbidden ?? messages.fallback
     case 'op_not_found':
       return messages.notFound ?? messages.fallback
+    case 'op_conflict':
+      return messages.conflict
+        ?? 'Cette tâche a été modifiée dans OpenProject entre-temps. Réessayez : l\'app repartira de sa dernière version.'
     case 'op_unavailable':
       return 'OpenProject ne répond pas. Réessayez dans un instant.'
     case 'op_invalid_response':
@@ -49,12 +54,17 @@ export function opErrorText(error: Error, messages: OpErrorMessages) {
   return messages.fallback
 }
 
-/** Un refus (4xx) ne changera pas en réessayant ; une panne d'OP ou du réseau, peut-être. */
+/**
+ * Un refus (4xx) ne changera pas en réessayant ; une panne d'OP ou du réseau, peut-être.
+ * Un conflit non plus, sauf qu'on réessaie sur la version relue d'OP.
+ */
 export function opErrorRecovery(error: Error): OpErrorRecovery {
   if (!(error instanceof ApiError))
     return 'retry'
   if (TOKEN_ERROR_CODES.has(error.code))
     return 'op-token'
+  if (error.code === 'op_conflict')
+    return 'retry'
   if (error.status === 401)
     return 'sign-in'
   if (error.status >= 400 && error.status < 500)
