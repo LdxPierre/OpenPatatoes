@@ -303,6 +303,44 @@ describe('création d\'une tâche', () => {
     expect(dialogButton('Créer').disabled).toBe(true)
   })
 
+  it('relit les types après une panne d\'OP', async () => {
+    const wrapper = await openProject()
+    fakeApi.on('GET', '/projects/1/types', () => {
+      throw new ApiError(503, 'op_unavailable')
+    })
+    await openDialog(wrapper)
+    // Un 5xx est retenté une fois avant d'être affiché.
+    await vi.waitFor(() => expect(dialog()?.textContent).toContain('Sans les types du projet'), { timeout: 3000 })
+
+    fakeApi.on('GET', '/projects/1/types', () => ({
+      types: [tache],
+    }))
+    wrapper.findComponent({ name: 'TaskCreateDialog' }).findComponent({ name: 'TaskChoicePicker' }).vm.$emit('retry')
+    await flushPromises()
+
+    expect(picker('Type').textContent?.trim()).toBe('Tâche')
+    expect(dialog()?.textContent).not.toContain('Sans les types du projet')
+  })
+
+  it('reste ouvert pendant l\'envoi', async () => {
+    const wrapper = await openProject()
+    await openDialog(wrapper)
+    const answer = deferred<unknown>()
+    fakeApi.on('POST', '/projects/1/tasks', () => answer.promise)
+    await typeSubject('Préparer la démo')
+    await submit()
+
+    expect(dialogButton('Annuler').disabled).toBe(true)
+    subjectInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+    expect(dialog()).not.toBeNull()
+
+    answer.resolve({
+      task: created(),
+    })
+    await expectNavigatedTo('/projets/1/taches/30')
+  })
+
   it('ferme sans rien créer, rend le focus au bouton et oublie la saisie', async () => {
     const wrapper = await openProject()
     await openDialog(wrapper)

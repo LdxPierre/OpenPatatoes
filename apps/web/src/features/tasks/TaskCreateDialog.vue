@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import type { ProjectType, TaskNode, TaskRef } from '@openpatatoes/shared'
 import type { OpErrorMessages } from '@/shared/api/op-error'
-import { TASK_SUBJECT_MAX_LENGTH } from '@openpatatoes/shared'
-import { DialogTrigger } from 'reka-ui'
+import { TASK_SUBJECT_MAX_LENGTH, taskRejectedResponseSchema } from '@openpatatoes/shared'
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue'
 import { ApiError } from '@/shared/api/api-fetch'
 import { opErrorRecovery, opErrorText } from '@/shared/api/op-error'
 import OpErrorAlert from '@/shared/components/OpErrorAlert.vue'
 import { Alert, AlertDescription } from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/shared/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/shared/components/ui/dialog'
 import { Input } from '@/shared/components/ui/input'
 import { Label } from '@/shared/components/ui/label'
 import TaskChoicePicker from './TaskChoicePicker.vue'
@@ -70,6 +69,12 @@ const typesFailure = computed(() => {
 
 const canSubmit = computed(() => type.value !== null && subject.value.trim() !== '' && !creation.isPending.value)
 
+/** Pendant l'envoi, le dialogue reste ouvert : la tâche sera créée dans OP quoi qu'il arrive, et son détail s'ouvrira. */
+function setOpen(value: boolean) {
+  if (value || !creation.isPending.value)
+    open.value = value
+}
+
 function submit() {
   if (!canSubmit.value || !type.value)
     return
@@ -94,9 +99,9 @@ const rejection = computed(() => {
   const error = creation.error.value
   if (!(error instanceof ApiError) || error.code !== 'op_rejected')
     return null
-  const body = error.body as { message?: unknown } | undefined
-  return typeof body?.message === 'string'
-    ? body.message
+  const body = taskRejectedResponseSchema.pick({ message: true }).safeParse(error.body)
+  return body.success
+    ? body.data.message
     : 'OpenProject a refusé la création de cette tâche.'
 })
 
@@ -127,7 +132,7 @@ const typeTexts = {
 </script>
 
 <template>
-  <Dialog v-model:open="open">
+  <Dialog :open="open" @update:open="setOpen">
     <DialogTrigger as-child>
       <Button variant="outline" class="new-task">
         Nouvelle tâche
@@ -187,7 +192,7 @@ const typeTexts = {
         </p>
 
         <DialogFooter>
-          <Button type="button" variant="outline" @click="open = false">
+          <Button type="button" variant="outline" :disabled="creation.isPending.value" @click="setOpen(false)">
             Annuler
           </Button>
           <Button type="submit" :disabled="!canSubmit">
