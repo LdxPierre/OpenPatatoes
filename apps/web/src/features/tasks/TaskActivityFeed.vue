@@ -162,7 +162,7 @@ function changeSummary(activity: TaskActivity) {
 
 <style scoped>
 .feed-section {
-  padding: var(--op-space-4) 0 var(--op-space-4) var(--op-space-6);
+  padding: var(--op-space-4) 0;
 }
 
 .muted,
@@ -415,11 +415,5 @@ time {
 
 .hint {
   font-size: var(--op-text-xs);
-}
-
-@media (max-width: 760px) {
-  .feed-section {
-    padding-left: 0;
-  }
 }
 </style>

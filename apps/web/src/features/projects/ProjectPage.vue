@@ -172,59 +172,63 @@ const taskErrorMessages: OpErrorMessages = {
         />
       </div>
 
-      <div class="workspace" :class="{ 'with-detail': taskId !== null }">
-        <div class="tasks" :inert="detailCovers">
-          <p v-if="taskTree.isPending.value" class="muted" role="status">
-            Chargement des tâches…
-          </p>
+      <div class="tasks" :inert="detailCovers">
+        <p v-if="taskTree.isPending.value" class="muted" role="status">
+          Chargement des tâches…
+        </p>
 
-          <OpErrorAlert
-            v-else-if="taskTree.error.value"
-            :error="taskTree.error.value"
-            :messages="taskErrorMessages"
-            :retrying="taskTree.isFetching.value"
-            @retry="taskTree.refetch()"
-          />
-
-          <p v-else-if="tasks?.length === 0" class="muted" role="status">
-            Ce projet n'a encore aucune tâche. Créez la première avec « Nouvelle tâche ».
-          </p>
-
-          <template v-else-if="tasks">
-            <div class="tree-toolbar">
-              <TaskFilterBar ref="filterBar" v-model="criteria" :options="options" class="filters" />
-              <TaskExpandAllButton
-                v-if="tree?.expandable"
-                :all-expanded="tree.allExpanded"
-                @toggle="tree.toggleAll()"
-              />
-            </div>
-
-            <p v-if="noMatch" class="muted" role="status">
-              Aucune tâche ne correspond à ces critères.
-            </p>
-
-            <!-- Masqué sans être démonté : l'arbre garde son dépliage pour le retour sans critère. -->
-            <TaskTree
-              v-show="!noMatch"
-              ref="tree"
-              :key="id"
-              :tasks="filtered?.tasks ?? tasks"
-              :match-ids="filtered?.matchIds"
-              :label="`Tâches de ${project.data.value.name}`"
-              :selected-id="taskId"
-              @open="openTask"
-            />
-          </template>
-        </div>
-
-        <RouterView
-          :tree="tasks"
-          :covering="detailCovers"
-          :focused="createdTaskId !== null && createdTaskId === taskId"
-          @close="closeTask"
+        <OpErrorAlert
+          v-else-if="taskTree.error.value"
+          :error="taskTree.error.value"
+          :messages="taskErrorMessages"
+          :retrying="taskTree.isFetching.value"
+          @retry="taskTree.refetch()"
         />
+
+        <p v-else-if="tasks?.length === 0" class="muted" role="status">
+          Ce projet n'a encore aucune tâche. Créez la première avec « Nouvelle tâche ».
+        </p>
+
+        <template v-else-if="tasks">
+          <div class="tree-toolbar">
+            <TaskFilterBar ref="filterBar" v-model="criteria" :options="options" class="filters" />
+            <TaskExpandAllButton
+              v-if="tree?.expandable"
+              :all-expanded="tree.allExpanded"
+              @toggle="tree.toggleAll()"
+            />
+          </div>
+
+          <p v-if="noMatch" class="muted" role="status">
+            Aucune tâche ne correspond à ces critères.
+          </p>
+
+          <!-- Masqué sans être démonté : l'arbre garde son dépliage pour le retour sans critère. -->
+          <TaskTree
+            v-show="!noMatch"
+            ref="tree"
+            :key="id"
+            :tasks="filtered?.tasks ?? tasks"
+            :match-ids="filtered?.matchIds"
+            :label="`Tâches de ${project.data.value.name}`"
+            :selected-id="taskId"
+            @open="openTask"
+          />
+        </template>
       </div>
+
+      <!-- Le détail glisse depuis le bord droit à l'ouverture et y repart à la fermeture, pas d'une tâche à l'autre. -->
+      <RouterView v-slot="{ Component }">
+        <Transition name="sheet">
+          <component
+            :is="Component"
+            :tree="tasks"
+            :covering="detailCovers"
+            :focused="createdTaskId !== null && createdTaskId === taskId"
+            @close="closeTask"
+          />
+        </Transition>
+      </RouterView>
     </template>
   </main>
 </template>
@@ -279,19 +283,8 @@ h1 {
   margin: 0;
 }
 
-.workspace {
-  align-self: stretch;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: var(--op-space-8);
-}
-
-.workspace.with-detail {
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
-}
-
 .tasks {
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -312,10 +305,13 @@ h1 {
   min-width: 0;
 }
 
-/* Sur petit écran, le détail recouvre l'arbre : l'arbre garde toute la largeur. */
-@media (max-width: 760px) {
-  .workspace.with-detail {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: transform 150ms ease-out;
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  transform: translateX(100%);
 }
 </style>

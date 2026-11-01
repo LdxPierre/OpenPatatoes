@@ -514,20 +514,23 @@ const closedSubtasksText = computed(() => {
   /* Libellé des propriétés : même largeur partout, pour que les valeurs s'alignent. */
   --field-label: 4.75rem;
 
-  position: sticky;
-  top: var(--op-space-4);
-  max-height: calc(100vh - 2 * var(--op-space-4));
+  /*
+   * Panneau posé au bord droit de la fenêtre, sur toute sa hauteur, sans assombrir la page :
+   * l'arbre reste actif dessous, on passe d'une tâche à l'autre sans fermer le détail.
+   */
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: min(32rem, 100%);
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
+  padding: 0 var(--op-space-6) var(--op-space-6);
   border-left: 1px solid var(--p-app-line);
-}
-
-/*
- * Collant, le détail forme son propre empilement : l'éditeur agrandi de la description n'y passe
- * au-dessus de l'en-tête de l'arbre que si le détail lui-même y passe.
- */
-.task-detail:has(.md-editor-fullscreen) {
-  z-index: 10;
+  background: var(--p-content-background);
+  box-shadow: var(--p-app-shadow-lift);
 }
 
 .head {
@@ -535,12 +538,12 @@ const closedSubtasksText = computed(() => {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--p-app-background);
+  background: var(--p-content-background);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--lineage-gap) var(--op-space-2);
-  padding: 0 0 var(--op-space-4) var(--op-space-6);
+  padding: var(--op-space-5) 0 var(--op-space-4);
 }
 
 .tabs {
@@ -627,7 +630,7 @@ dt,
 }
 
 .section {
-  padding: var(--op-space-4) 0 var(--op-space-4) var(--op-space-6);
+  padding: var(--op-space-4) 0;
   border-top: 1px solid var(--p-app-line);
 }
 
@@ -811,18 +814,8 @@ h3 {
 /* Sur petit écran, le détail recouvre l'arbre ; le fermer y ramène. */
 @media (max-width: 760px) {
   .task-detail {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    max-height: none;
-    padding: var(--op-space-4) var(--op-space-6) var(--op-space-6);
     border-left: 0;
-    background: var(--p-app-background);
-  }
-
-  .head,
-  .section {
-    padding-left: 0;
+    box-shadow: none;
   }
 }
 </style>
