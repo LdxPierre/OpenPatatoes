@@ -16,7 +16,7 @@ import { useProjectQuery } from './projects'
 
 const props = defineProps<{
   id: number
-  /** Tâche dont le détail est ouvert à côté de l'arbre. */
+  /** Tâche dont le détail est ouvert au-dessus de l'arbre. */
   taskId: number | null
 }>()
 

@@ -19,7 +19,7 @@ import TaskParentPicker from './TaskParentPicker.vue'
 import { taskPreview, taskRejection, usePendingTaskFields, useTaskDetailQuery, useTaskEditMutation } from './tasks'
 
 /**
- * Détail d'une tâche, à côté de l'arbre du projet. Le parent est relié au titre
+ * Détail d'une tâche, posé au bord droit de la fenêtre, au-dessus de l'arbre du projet. Le parent est relié au titre
  * par un coude, comme dans l'arbre ; les sous-tâches en partent de la même façon.
  */
 const props = defineProps<{
@@ -814,6 +814,7 @@ h3 {
 /* Sur petit écran, le détail recouvre l'arbre ; le fermer y ramène. */
 @media (max-width: 760px) {
   .task-detail {
+    width: 100%;
     border-left: 0;
     box-shadow: none;
   }
