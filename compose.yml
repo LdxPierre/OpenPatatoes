@@ -32,7 +32,7 @@ services:
       - ${OP_CA_CERT:-/dev/null}:/run/op-ca.pem:ro
     extra_hosts:
       # Compose refuse une entrée vide : sans OP_HOSTS_ENTRY, une entrée inoffensive la remplace.
-      - ${OP_HOSTS_ENTRY:-op.invalid=127.0.0.1}
+      - ${OP_HOSTS_ENTRY:-op.invalid:127.0.0.1}
     depends_on:
       postgres: {condition: service_healthy}
     # Prêt une fois les migrations appliquées et le serveur à l'écoute.
