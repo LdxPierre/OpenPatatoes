@@ -162,7 +162,7 @@ function changeSummary(activity: TaskActivity) {
 
 <style scoped>
 .feed-section {
-  padding: var(--op-space-4) 0 var(--op-space-4) var(--op-space-6);
+  padding: var(--op-space-4) 0;
 }
 
 .muted,
@@ -232,7 +232,7 @@ time {
   color: var(--p-primary-color);
   font-size: 10px;
   font-weight: 700;
-  box-shadow: 0 0 0 3px var(--p-app-background);
+  box-shadow: 0 0 0 3px var(--p-content-background);
 }
 
 .meta {
@@ -333,7 +333,7 @@ time {
   box-sizing: border-box;
   border-radius: 50%;
   border: 2px solid var(--p-app-tree-guide);
-  background: var(--p-app-background);
+  background: var(--p-content-background);
 }
 
 .what {
@@ -415,11 +415,5 @@ time {
 
 .hint {
   font-size: var(--op-text-xs);
-}
-
-@media (max-width: 760px) {
-  .feed-section {
-    padding-left: 0;
-  }
 }
 </style>

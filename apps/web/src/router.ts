@@ -34,7 +34,7 @@ export const router = createRouter({
       }),
       children: [
         {
-          // Le détail s'ouvre à côté de l'arbre : l'adresse garde le projet.
+          // Le détail s'ouvre au-dessus de l'arbre : l'adresse garde le projet.
           path: 'taches/:taskId([1-9]\\d{0,14})',
           name: 'task',
           component: () => import('@/features/tasks/TaskDetailPanel.vue'),

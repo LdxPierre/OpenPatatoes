@@ -136,7 +136,7 @@ La maquette de référence est `explorations/a3-vitelotte-ouvert.html`.
 
 La maquette de référence est `explorations/detail-tache-panneau-droite.html`.
 
-- **Place** : un panneau à droite de l'arbre. L'arbre garde sa place à gauche. Sur petit écran, le panneau recouvre l'arbre.
+- **Place** : un panneau posé au bord droit de la fenêtre, sur toute sa hauteur, avec l'ombre `--p-app-shadow-lift`. Il n'assombrit pas la page : l'arbre reste actif dessous, et cliquer une autre tâche change le détail sans le fermer. Le panneau glisse depuis le bord à l'ouverture et y repart à la fermeture, pas d'une tâche à l'autre. Sur petit écran, il prend toute la largeur et le focus, et l'arbre dessous devient inerte.
 - **En-tête** : la tâche parente, reliée au titre par un coude comme dans l'arbre, puis l'état, l'assigné et le numéro OP.
 - **Heures** : estimé, restant et passé sur une seule ligne. Une heure vide affiche « Non renseigné » : un libellé seul ferait croire à un oubli de l'app. Le temps passé disparaît quand OP ne le donne pas au jeton.
 - **Propriétés** : une par ligne de 28 px, libellé et valeur côte à côte. Les valeurs courtes, type et priorité, vont par deux. Une propriété vide n'est pas affichée.
