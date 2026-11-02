@@ -17,6 +17,16 @@ L'application est sur http://localhost:8080 (`WEB_PORT` pour changer le port). C
 - `api` : le serveur Fastify, qui applique les migrations à chaque démarrage ;
 - `postgres` : la base, dans le volume `pgdata`.
 
+Le nom d'hôte de `OP_BASE_URL` doit être celui du certificat d'OP, et OP refuse en général d'être appelé par son IP. Deux variables facultatives couvrent les instances internes :
+
+- `OP_HOSTS_ENTRY` (`<nom>=<ip>`) : ajoute le nom d'OP au fichier `/etc/hosts` du service `api`, quand le DNS de Docker ne le résout pas ;
+- `OP_CA_CERT` : chemin, sur l'hôte, d'un certificat PEM auquel le service `api` fait aussi confiance. Si OP envoie une chaîne de certificats incomplète, le navigateur la complète mais pas Node, et l'app répond `op_unavailable`. Mettez-y le certificat intermédiaire manquant, téléchargeable depuis l'URL « CA Issuers » du certificat d'OP :
+
+  ```sh
+  echo | openssl s_client -connect <ip>:443 -servername <nom> 2>/dev/null | openssl x509 -noout -ext authorityInfoAccess
+  curl -s <url CA Issuers> | openssl x509 -inform der -out certs/op-ca.pem
+  ```
+
 Le cookie de session est réservé à HTTPS (`COOKIE_SECURE=true`), sauf sur `localhost`, que Chrome et Firefox traitent comme sûr. Pour essayer l'app en HTTP depuis une autre adresse, mettez `COOKIE_SECURE=false`. En production, placez un proxy HTTPS devant le service `web`.
 
 ## Développement

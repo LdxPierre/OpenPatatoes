@@ -25,6 +25,14 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?à définir dans .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      # Node ajoute ce certificat à ses autorités de confiance, seulement si OP_CA_CERT est défini.
+      NODE_EXTRA_CA_CERTS: ${OP_CA_CERT:+/run/op-ca.pem}
+    volumes:
+      # Sans OP_CA_CERT, /dev/null est monté et Node ne le lit pas.
+      - ${OP_CA_CERT:-/dev/null}:/run/op-ca.pem:ro
+    extra_hosts:
+      # Compose refuse une entrée vide : sans OP_HOSTS_ENTRY, une entrée inoffensive la remplace.
+      - ${OP_HOSTS_ENTRY:-op.invalid=127.0.0.1}
     depends_on:
       postgres: {condition: service_healthy}
     # Prêt une fois les migrations appliquées et le serveur à l'écoute.
